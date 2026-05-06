@@ -6,14 +6,14 @@
     <title>PMP vs Horda Troli - Rysiek i Sławek</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; }
+        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
 <body>
 <script>
 
-// Globalne ustawienie głośności (3/10 -> 0.3)
+// Ustawienia globalne
 let globalVolume = 0.3;
 
 const CONFIG = {
@@ -23,21 +23,19 @@ const CONFIG = {
     scene: null
 };
 
-/* --- BEZPIECZNY SYSTEM MUZYKI --- */
+/* --- SYSTEM BEZPIECZNEGO AUDIO --- */
 function playMusic(scene, key) {
     scene.sound.stopAll();
     if (scene.cache.audio.exists(key)) {
         scene.sound.play(key, { loop: true, volume: globalVolume });
-    } else {
-        console.warn("Błąd: Brak pliku " + key + " w folderze assets. Gra rusza w ciszy.");
     }
 }
 
-/* --- BOOT: ŁADOWANIE ZASOBÓW --- */
+/* --- SCENA ŁADOWANIA --- */
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
     preload() {
-        // Grafiki interfejsu i tła
+        // Grafiki
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tabelarekordow', 'assets/tabelarekordow.png');
         this.load.image('bohater1', 'assets/bohater1.png');
@@ -46,14 +44,13 @@ class BootScene extends Phaser.Scene {
         this.load.image('opower1', 'assets/opower1.png');
         
         ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
-        
         for(let i=1; i<=3; i++) {
             this.load.image('tb'+i, `assets/tb${i}.png`);
             this.load.image('tk'+i, `assets/tk${i}.png`);
             this.load.image('tm'+i, `assets/tm${i}.png`);
         }
 
-        // MUZYKA (Nowe nazwy)
+        // Muzyka (nowe nazwy plików)
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
         this.load.audio('track3', 'assets/muzyka3.mp3');
@@ -65,94 +62,166 @@ class BootScene extends Phaser.Scene {
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
     create() {
-        playMusic(this, 'track1');
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
         
-        let btn = this.add.rectangle(640, 500, 300, 70, 0x000000, 0.8).setInteractive().setStrokeStyle(3, 0xffffff);
-        this.add.text(640, 500, "START", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
-        btn.on('pointerdown', () => this.scene.start("SelectScene"));
+        let startBtn = this.add.rectangle(640, 480, 350, 80, 0x000000, 0.8).setInteractive().setStrokeStyle(4, 0xffffff);
+        this.add.text(640, 480, "GRAJ I WŁĄCZ AUDIO", { fontSize: '28px', fill: '#fff' }).setOrigin(0.5);
+
+        startBtn.on('pointerdown', () => {
+            if (this.sound.context.state === 'suspended') this.sound.context.resume();
+            playMusic(this, 'track1');
+            this.scene.start("SelectScene");
+        });
+
+        // Suwak głośności
+        this.add.text(640, 600, "GŁOŚNOŚĆ (0-10)", { fontSize: '20px' }).setOrigin(0.5);
+        let track = this.add.rectangle(640, 640, 200, 10, 0x444444);
+        let handle = this.add.circle(540 + (globalVolume * 200), 640, 15, 0xffffff).setInteractive({ draggable: true });
         
-        this.createVolumeSlider();
-    }
-
-    createVolumeSlider() {
-        this.add.text(100, 650, "GŁOŚNOŚĆ:", { fontSize: '20px', fill: '#fff' });
-        let track = this.add.rectangle(300, 660, 200, 10, 0x444444);
-        // Startujemy na 0.3 (czyli 3 na suwaku)
-        let handle = this.add.circle(200 + (globalVolume * 200), 660, 15, 0xffffff).setInteractive({ draggable: true });
-        let volVal = this.add.text(420, 650, "3", { fontSize: '20px' });
-
         handle.on('drag', (p, dragX) => {
-            let x = Phaser.Math.Clamp(dragX, 200, 400);
+            let x = Phaser.Math.Clamp(dragX, 540, 740);
             handle.x = x;
-            globalVolume = (x - 200) / 200;
+            globalVolume = (x - 540) / 200;
             this.sound.setVolume(globalVolume);
-            volVal.setText(Math.round(globalVolume * 10));
         });
     }
 }
 
-/* --- WYBÓR POSTACI --- */
+/* --- WYBÓR BOHATERA --- */
 class SelectScene extends Phaser.Scene {
     constructor() { super("SelectScene"); }
     create() {
-        this.add.text(640, 100, "WYBIERZ BOHATERA", { fontSize: '42px', fill: '#fff' }).setOrigin(0.5);
+        this.add.text(640, 80, "WYBIERZ SWOJEGO WOJOWNIKA", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
         
-        let p1 = this.add.image(440, 380, 'bohater1').setInteractive().setScale(0.8);
-        this.add.text(440, 520, "RYSIEK", { fontSize: '32px', fill: '#0f0' }).setOrigin(0.5);
+        let p1 = this.add.image(440, 350, 'bohater1').setInteractive().setScale(0.7);
+        this.add.text(440, 520, "RYSIEK", { fontSize: '36px', fill: '#0f0', fontStyle: 'bold' }).setOrigin(0.5);
 
-        let p2 = this.add.image(840, 380, 'bohater2').setInteractive().setScale(0.8);
-        this.add.text(840, 520, "SŁAWEK", { fontSize: '32px', fill: '#ff0' }).setOrigin(0.5);
+        let p2 = this.add.image(840, 350, 'bohater2').setInteractive().setScale(0.7);
+        this.add.text(840, 520, "SŁAWEK", { fontSize: '36px', fill: '#ff0', fontStyle: 'bold' }).setOrigin(0.5);
 
         p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1', name: 'Rysiek' }));
         p2.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater2', name: 'Sławek' }));
+        
+        let back = this.add.text(640, 650, "⬅ POWRÓT", { fontSize: '24px', fill: '#aaa' }).setOrigin(0.5).setInteractive();
+        back.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
-/* --- GRA --- */
+/* --- ROZGRYWKA --- */
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
     init(data) { 
         this.heroData = data; 
         this.score = 0; 
-        this.startTime = Date.now();
+        this.lastFire = 0;
+        this.lastNova = 0;
     }
+
     create() {
         playMusic(this, 'track2');
         this.add.image(640, 360, 'tlolv1').setDisplaySize(1280, 720);
         
-        this.player = this.physics.add.sprite(200, 360, this.heroData.hero).setScale(0.45).setCollideWorldBounds(true);
-        this.trolls = this.physics.add.group();
+        // Gracz
+        this.player = this.physics.add.sprite(200, 360, this.heroData.hero).setScale(0.35);
+        this.player.setCollideWorldBounds(true).setSize(this.player.width * 0.6, this.player.height * 0.8);
         
-        this.time.addEvent({ delay: 1500, callback: this.spawn, callbackScope: this, loop: true });
+        // Animacja oddechu gracza
+        this.tweens.add({
+            targets: this.player,
+            scaleY: 0.33,
+            duration: 900,
+            yoyo: true,
+            repeat: -1
+        });
+
+        this.trolls = this.physics.add.group();
+        this.bullets = this.physics.add.group();
+        
+        this.time.addEvent({ delay: 1600, callback: this.spawn, callbackScope: this, loop: true });
+
+        // Sterowanie dotykowe (Przyciski)
+        this.btnA = this.add.circle(1150, 600, 65, 0xff0000, 0.7).setInteractive();
+        this.add.text(1150, 600, "MOC", { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
+        
+        this.btnZ = this.add.circle(1000, 600, 65, 0x00ffff, 0.7).setInteractive();
+        this.add.text(1000, 600, "FALA", { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
+
+        this.btnA.on('pointerdown', () => this.fireBall());
+        this.btnZ.on('pointerdown', () => this.nova());
+
+        // Klawiatura
+        this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+        this.keyZ = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+
+        // Kolizje
+        this.physics.add.overlap(this.bullets, this.trolls, (b, t) => { b.destroy(); t.destroy(); this.score++; });
         this.physics.add.overlap(this.player, this.trolls, () => this.gameOver());
         
-        this.scoreText = this.add.text(20, 20, `RYCERZ: ${this.heroData.name} | TROLLE: 0`, { fontSize: '24px', fill: '#fff' });
+        this.scoreTxt = this.add.text(20, 20, `WOJOWNIK: ${this.heroData.name} | TROLLE: 0`, { fontSize: '28px', fill: '#fff', stroke: '#000', strokeThickness: 4 });
     }
 
     update() {
-        if (this.input.activePointer.isDown) this.physics.moveToObject(this.player, this.input.activePointer, 400);
-        else this.player.setVelocity(0);
+        let speed = 400;
+        this.player.setVelocity(0);
+        
+        // Ruch myszką/dotykiem
+        if (this.input.activePointer.isDown && this.input.activePointer.x < 900) {
+            this.physics.moveTo(this.player, this.input.activePointer.x, this.input.activePointer.y, speed);
+        }
+        
+        // Klawiatura akcje
+        if (Phaser.Input.Keyboard.JustDown(this.keyA)) this.fireBall();
+        if (Phaser.Input.Keyboard.JustDown(this.keyZ)) this.nova();
+
+        this.scoreTxt.setText(`WOJOWNIK: ${this.heroData.name} | TROLLE: ${this.score}`);
     }
 
     spawn() {
         let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), 'tb'+Phaser.Math.Between(1,3));
         if(t) {
-            t.setScale(0.4).body.setVelocityX(-250);
-            this.score++; // Tu na razie punkty za przetrwanie spawnu
-            this.scoreText.setText(`RYCERZ: ${this.heroData.name} | TROLLE: ${this.score}`);
+            t.setScale(0.3).setFlipX(true); // setFlipX(true) sprawia, że patrzy w lewo
+            t.body.setVelocityX(-230);
+            t.body.setSize(t.width * 0.5, t.height * 0.7);
+
+            // Animacja biegu trolla
+            this.tweens.add({
+                targets: t,
+                y: t.y - 15,
+                angle: { from: -5, to: 5 },
+                duration: 250,
+                yoyo: true,
+                repeat: -1
+            });
         }
     }
 
+    fireBall() {
+        if (this.time.now < this.lastFire) return;
+        let b = this.bullets.create(this.player.x + 50, this.player.y, 'hpower2').setScale(0.25);
+        b.body.setVelocityX(900);
+        this.lastFire = this.time.now + 350;
+    }
+
+    nova() {
+        if (this.time.now < this.lastNova) return;
+        let n = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
+        this.tweens.add({ targets: n, scale: 5, alpha: 0, duration: 450, onComplete: () => n.destroy() });
+        
+        this.trolls.children.iterate(t => {
+            if (t && t.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 280) {
+                t.destroy();
+                this.score++;
+            }
+        });
+        this.lastNova = this.time.now + 1500;
+    }
+
     gameOver() {
-        let finalTime = Math.floor((Date.now() - this.startTime) / 1000);
-        let nick = prompt("POKONANY! Podaj imię do tabeli rekordów:", "Gracz");
-        
-        let records = JSON.parse(localStorage.getItem('pmp_records') || '[]');
-        records.push({ name: nick || "Anonim", score: this.score, time: finalTime });
-        records.sort((a, b) => b.score - a.score);
-        localStorage.setItem('pmp_records', JSON.stringify(records.slice(0, 10)));
-        
+        let nick = prompt("POLEGŁEŚ! Podaj swój nick pogromco:", "Gracz");
+        let rec = JSON.parse(localStorage.getItem('pmp_trolls_v1') || '[]');
+        rec.push({ n: nick || "Anonim", s: this.score });
+        rec.sort((a,b) => b.s - a.s);
+        localStorage.setItem('pmp_trolls_v1', JSON.stringify(rec.slice(0,10)));
         this.scene.start("RankScene");
     }
 }
@@ -164,18 +233,21 @@ class RankScene extends Phaser.Scene {
         playMusic(this, 'track3');
         this.add.image(640, 360, 'tabelarekordow').setDisplaySize(1280, 720);
         
-        const records = JSON.parse(localStorage.getItem('pmp_records') || '[]');
-        records.forEach((r, i) => {
-            let y = 200 + (i * 40);
-            this.add.text(350, y, `${i+1}. ${r.name}`, { fontSize: '22px', fill: '#fff' });
-            this.add.text(800, y, `${r.score} troli / ${r.time}s`, { fontSize: '22px', fill: '#0f0' });
+        this.add.text(640, 80, "NAJLEPSZA DZIESIĄTKA", { fontSize: '38px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+
+        let rec = JSON.parse(localStorage.getItem('pmp_trolls_v1') || '[]');
+        rec.forEach((r, i) => {
+            let y = 200 + (i * 42);
+            this.add.text(380, y, `${i+1}. ${r.n}`, { fontSize: '24px', fill: '#fff' });
+            this.add.text(820, y, `${r.s} TROLLE`, { fontSize: '24px', fill: '#0f0' });
         });
 
-        let btn = this.add.text(640, 650, "ZAGRAJ PONOWNIE", { fontSize: '28px', fill: '#ffff00' }).setOrigin(0.5).setInteractive();
+        let btn = this.add.text(640, 660, "POWRÓT DO MENU", { fontSize: '28px', fill: '#ff0' }).setOrigin(0.5).setInteractive();
         btn.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
+// Inicjalizacja gry
 const game = new Phaser.Game(Object.assign(CONFIG, { scene: [BootScene, StartScene, SelectScene, GameScene, RankScene] }));
 </script>
 </body>
