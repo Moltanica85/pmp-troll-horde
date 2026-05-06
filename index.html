@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PMP vs Horda Troli - Pro</title>
+    <title>PMP vs Horda Troli - Kampania</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; }
+        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
@@ -44,7 +44,14 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
         ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
-        for(let i=1; i<=3; i++) this.load.image('tb'+i, `assets/tb${i}.png`);
+        
+        // Ładowanie wszystkich typów trolli
+        for(let i=1; i<=3; i++) {
+            this.load.image('tb'+i, `assets/tb${i}.png`); // Level 1
+            this.load.image('tk'+i, `assets/tk${i}.png`); // Level 2
+            this.load.image('tm'+i, `assets/tm${i}.png`); // Level 3
+        }
+        
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
         this.load.audio('track3', 'assets/muzyka3.mp3');
@@ -63,7 +70,6 @@ class StartScene extends Phaser.Scene {
         this.add.text(640, 500, "START", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
         btn.on('pointerdown', () => this.scene.start("SelectScene"));
 
-        // Przycisk FullScreen
         let fsBtn = this.add.text(1250, 30, "⛶", { fontSize: '40px', fill: '#fff' }).setOrigin(1, 0).setInteractive();
         fsBtn.on('pointerdown', () => { if (!this.scale.isFullscreen) this.scale.startFullscreen(); });
     }
@@ -73,7 +79,7 @@ class StartScene extends Phaser.Scene {
 class SelectScene extends Phaser.Scene {
     constructor() { super("SelectScene"); }
     create() {
-        this.add.text(640, 100, "WYBIERZ WOJOWNIKA", { fontSize: '40px' }).setOrigin(0.5);
+        this.add.text(640, 100, "WYBIERZ WOJOWNIKA", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
         let p1 = this.add.image(440, 360, 'bohater1').setInteractive().setScale(0.7);
         let p2 = this.add.image(840, 360, 'bohater2').setInteractive().setScale(0.7);
         p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1', name: 'Rysiek' }));
@@ -91,6 +97,7 @@ class GameScene extends Phaser.Scene {
         this.killedInLevel = 0;
         this.trollsToKill = 10;
         this.isTransitioning = false;
+        this.lastFire = 0;
     }
 
     create() {
@@ -103,47 +110,64 @@ class GameScene extends Phaser.Scene {
         this.trolls = this.physics.add.group();
         this.bullets = this.physics.add.group();
         
-        // Timer spawnu
         this.spawnTimer = this.time.addEvent({ delay: 1500, callback: this.spawn, callbackScope: this, loop: true });
 
-        // Sterowanie: WASD + Strzałki
+        // Sterowanie: WASD / Strzałki / K i L
         this.cursors = this.input.keyboard.createCursorKeys();
         this.wasd = this.input.keyboard.addKeys('W,A,S,D');
-        this.keyA = this.input.keyboard.addKey('A');
-        this.keyZ = this.input.keyboard.addKey('Z');
+        this.keyK = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K);
+        this.keyL = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L);
 
-        // UI
         this.uiTxt = this.add.text(20, 20, '', { fontSize: '28px', fill: '#fff', stroke: '#000', strokeThickness: 5 });
         
-        // Kolizje
         this.physics.add.overlap(this.bullets, this.trolls, (b, t) => {
             b.destroy(); t.destroy(); this.score++; this.killedInLevel++;
         });
         this.physics.add.overlap(this.player, this.trolls, () => this.gameOver());
 
-        // Przyciski mobilne (A i Z)
         this.createMobileControls();
     }
 
     createMobileControls() {
-        let aBtn = this.add.circle(1150, 600, 60, 0xff0000, 0.6).setInteractive();
-        this.add.text(1150, 600, "MOC", {fontSize:'24px'}).setOrigin(0.5);
-        aBtn.on('pointerdown', () => this.fire());
+        let kBtn = this.add.circle(1150, 600, 60, 0xff0000, 0.6).setInteractive();
+        this.add.text(1150, 600, "K", {fontSize:'40px'}).setOrigin(0.5);
+        kBtn.on('pointerdown', () => this.fire());
 
-        let zBtn = this.add.circle(1000, 600, 60, 0x00ffff, 0.6).setInteractive();
-        this.add.text(1000, 600, "FALA", {fontSize:'24px'}).setOrigin(0.5);
-        zBtn.on('pointerdown', () => this.nova());
+        let lBtn = this.add.circle(1000, 600, 60, 0x00ffff, 0.6).setInteractive();
+        this.add.text(1000, 600, "L", {fontSize:'40px'}).setOrigin(0.5);
+        lBtn.on('pointerdown', () => this.nova());
     }
 
     spawn() {
         if (this.isTransitioning) return;
-        let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), 'tb'+Phaser.Math.Between(1,3));
-        t.setScale(0.28).setFlipX(true).body.setVelocityX(-(220 + (this.level * 30)));
+        
+        // Wybór typu trolla na podstawie poziomu
+        let prefix = 'tb'; // domyślnie level 1
+        if (this.level === 2) prefix = 'tk';
+        if (this.level === 3) prefix = 'tm';
+
+        let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), prefix + Phaser.Math.Between(1,3));
+        
+        if (t) {
+            t.setScale(0.28).setFlipX(true).body.setVelocityX(-(220 + (this.level * 35)));
+            
+            // Przywrócona animacja bujania (biegu)
+            this.tweens.add({
+                targets: t,
+                y: t.y - 15,
+                angle: { from: -5, to: 5 },
+                duration: 250,
+                yoyo: true,
+                repeat: -1
+            });
+        }
     }
 
     fire() {
+        if (this.time.now < this.lastFire) return;
         let b = this.bullets.create(this.player.x+50, this.player.y, 'hpower2').setScale(0.2);
-        b.body.setVelocityX(900);
+        b.body.setVelocityX(1000);
+        this.lastFire = this.time.now + 300;
     }
 
     nova() {
@@ -161,7 +185,7 @@ class GameScene extends Phaser.Scene {
         this.trolls.clear(true, true);
         
         if (this.level >= 3) {
-            this.gameOver("WYGRAŁEŚ! KRAINA URATOWANA!");
+            this.gameOver("GRATULACJE! POKONAŁEŚ WSZYSTKIE HORDRY!");
             return;
         }
 
@@ -169,9 +193,11 @@ class GameScene extends Phaser.Scene {
         this.killedInLevel = 0;
         this.trollsToKill += 5;
 
-        let txt = this.add.text(640, 360, `POZIOM ${this.level}`, { fontSize: '80px', fill: '#ff0', stroke: '#000', strokeThickness: 10 }).setOrigin(0.5);
+        let txt = this.add.text(640, 360, `POZIOM ${this.level}\nNADCHODZĄ NOWE TROLLE!`, { 
+            fontSize: '60px', fill: '#ff0', align: 'center', stroke: '#000', strokeThickness: 8 
+        }).setOrigin(0.5);
         
-        this.time.delayedCall(2500, () => {
+        this.time.delayedCall(3000, () => {
             txt.destroy();
             this.bg.setTexture('tlolv' + this.level);
             this.isTransitioning = false;
@@ -181,37 +207,36 @@ class GameScene extends Phaser.Scene {
     update() {
         this.uiTxt.setText(`POZIOM: ${this.level} | POKONANE: ${this.killedInLevel}/${this.trollsToKill} | WYNIK: ${this.score}`);
         
-        // Sprawdzenie zwycięstwa
         if (this.killedInLevel >= this.trollsToKill && !this.isTransitioning) {
             this.nextLevel();
         }
 
-        // RUCH (Prędkość 650!)
         let speed = 650;
         this.player.setVelocity(0);
 
+        // WASD + Strzałki
         if (this.cursors.left.isDown || this.wasd.A.isDown) this.player.setVelocityX(-speed);
         else if (this.cursors.right.isDown || this.wasd.D.isDown) this.player.setVelocityX(speed);
 
         if (this.cursors.up.isDown || this.wasd.W.isDown) this.player.setVelocityY(-speed);
         else if (this.cursors.down.isDown || this.wasd.S.isDown) this.player.setVelocityY(speed);
 
-        // Myszka/Dotyk (ruch do punktu)
+        // Atak klawiatura (K i L)
+        if (Phaser.Input.Keyboard.JustDown(this.keyK)) this.fire();
+        if (Phaser.Input.Keyboard.JustDown(this.keyL)) this.nova();
+
+        // Ruch myszką
         if (this.input.activePointer.isDown && this.input.activePointer.x < 900) {
             this.physics.moveTo(this.player, this.input.activePointer.x, this.input.activePointer.y, speed);
         }
-
-        // Atak klawiatura
-        if (Phaser.Input.Keyboard.JustDown(this.keyA)) this.fire();
-        if (Phaser.Input.Keyboard.JustDown(this.keyZ)) this.nova();
     }
 
     gameOver(msg = "KONIEC GRY!") {
-        let nick = prompt(msg + "\nTwój wynik: " + this.score + "\nPodaj nick:");
-        let rec = JSON.parse(localStorage.getItem('pmp_pro_v1') || '[]');
+        let nick = prompt(msg + "\nWynik: " + this.score + "\nPodaj nick:");
+        let rec = JSON.parse(localStorage.getItem('pmp_final_v2') || '[]');
         rec.push({ n: nick || "Gracz", s: this.score });
         rec.sort((a,b) => b.s - a.s);
-        localStorage.setItem('pmp_pro_v1', JSON.stringify(rec.slice(0,10)));
+        localStorage.setItem('pmp_final_v2', JSON.stringify(rec.slice(0,10)));
         this.scene.start("RankScene");
     }
 }
@@ -222,12 +247,12 @@ class RankScene extends Phaser.Scene {
     create() {
         playMusic(this, 'track3');
         this.add.image(640, 360, 'tabelarekordow').setDisplaySize(1280, 720);
-        let rec = JSON.parse(localStorage.getItem('pmp_pro_v1') || '[]');
+        let rec = JSON.parse(localStorage.getItem('pmp_final_v2') || '[]');
         rec.forEach((r, i) => {
             this.add.text(400, 180+(i*45), `${i+1}. ${r.n}`, { fontSize: '26px', fill: '#fff' });
-            this.add.text(800, 180+(i*45), `${r.s} PKT`, { fontSize: '26px', fill: '#0f0' });
+            this.add.text(800, 180+(i*45), `${r.s} TROLII`, { fontSize: '26px', fill: '#0f0' });
         });
-        let b = this.add.text(640, 660, "MENU GŁÓWNE", { fontSize: '30px', fill: '#ff0' }).setOrigin(0.5).setInteractive();
+        let b = this.add.text(640, 660, "POWRÓT", { fontSize: '30px', fill: '#ff0' }).setOrigin(0.5).setInteractive();
         b.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
