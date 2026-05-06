@@ -2,196 +2,156 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Troll Horde: Rysiek & Sławek Edition</title>
+    <title>PMP vs Horda Troli</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; }
+        body { margin: 0; background: #000; overflow: hidden; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
 <body>
 <script>
 
+// Globalne ustawienia głośności (0.3 = 3 w skali 0-10)
+let globalVolume = 0.3;
+
 const CONFIG = {
     type: Phaser.AUTO,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1280,
-        height: 720
-    },
-    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
     scene: null
 };
 
-/* --- LOGIKA RANKINGU (LocalStorage) --- */
-const Leaderboard = {
-    save(score, time) {
-        let scores = JSON.parse(localStorage.getItem('troll_rank') || '[]');
-        scores.push({ score, time, date: new Date().toLocaleDateString() });
-        scores.sort((a, b) => b.score - a.score); // Sortuj po liczbie zabitych trolli
-        localStorage.setItem('troll_rank', JSON.stringify(scores.slice(0, 10)));
-    },
-    get() {
-        return JSON.parse(localStorage.getItem('troll_rank') || '[]');
-    }
-};
-
+/* --- BOOT: Ładowanie zasobów --- */
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
     preload() {
-        const assets = ['oknoglowne', 'bohater1', 'bohater2', 'hpower2', 'opower1'];
-        assets.forEach(a => this.load.image(a, `assets/${a}.png`));
+        this.load.image('oknoglowne', 'assets/oknoglowne.png');
+        this.load.image('tabelarekordow', 'assets/tabelarekordow.png');
+        this.load.image('bohater1', 'assets/bohater1.png');
+        this.load.image('bohater2', 'assets/bohater2.png');
         ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
         for(let i=1; i<=3; i++) {
             this.load.image('tb'+i, `assets/tb${i}.png`);
             this.load.image('tk'+i, `assets/tk${i}.png`);
             this.load.image('tm'+i, `assets/tm${i}.png`);
         }
+        // AUDIO
+        this.load.audio('track1', 'assets/pmp vs.horda troli1.mp3');
+        this.load.audio('track2', 'assets/pmp vs.horda troli2.mp3');
+        this.load.audio('track3', 'assets/pmp vs.horda troli3.mp3');
     }
     create() { this.scene.start("StartScene"); }
 }
 
+/* --- FUNKCJA ZMIANY MUZYKI --- */
+function playMusic(scene, key) {
+    scene.sound.stopAll();
+    scene.sound.play(key, { loop: true, volume: globalVolume });
+}
+
+/* --- SCENA STARTOWA --- */
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
     create() {
+        playMusic(this, 'track1');
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
-        let btn = this.add.rectangle(640, 500, 300, 80, 0x000000, 0.8).setInteractive().setStrokeStyle(4, 0xffffff);
-        this.add.text(640, 500, "STARTUJEMY!", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
+        
+        let btn = this.add.rectangle(640, 500, 300, 70, 0x000000, 0.8).setInteractive().setStrokeStyle(3, 0xffffff);
+        this.add.text(640, 500, "DO BOJU!", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
         btn.on('pointerdown', () => this.scene.start("SelectScene"));
         
-        // Wyświetl mały guzik do rankingu
-        let rankBtn = this.add.text(640, 600, "ZOBACZ RANKING", { fontSize: '20px', fill: '#aaa' }).setOrigin(0.5).setInteractive();
-        rankBtn.on('pointerdown', () => this.scene.start("RankScene"));
+        this.createVolumeUI();
+    }
+
+    createVolumeUI() {
+        this.add.text(100, 650, "GŁOŚNOŚĆ:", { fontSize: '20px' });
+        let bar = this.add.rectangle(300, 660, 200, 10, 0x444444);
+        let handle = this.add.circle(200 + (globalVolume * 10 * 20), 660, 15, 0xffffff).setInteractive({ draggable: true });
+        let volText = this.add.text(420, 650, Math.round(globalVolume * 10), { fontSize: '20px' });
+
+        handle.on('drag', (p, dragX) => {
+            let x = Phaser.Math.Clamp(dragX, 200, 400);
+            handle.x = x;
+            globalVolume = (x - 200) / 200;
+            this.sound.setVolume(globalVolume);
+            volText.setText(Math.round(globalVolume * 10));
+        });
     }
 }
 
+/* --- WYBÓR POSTACI --- */
 class SelectScene extends Phaser.Scene {
     constructor() { super("SelectScene"); }
     create() {
-        this.add.text(640, 100, "KIM DZISIAJ JESTEŚ?", { fontSize: '48px', fill: '#fff' }).setOrigin(0.5);
+        // Kontynuacja track1 (nie restartujemy muzyki, bo to to samo okno klimatyczne)
+        this.add.text(640, 100, "WYBIERZ WOJOWNIKA", { fontSize: '48px', fill: '#fff' }).setOrigin(0.5);
         
-        // Rysiek
-        let p1 = this.add.image(440, 360, 'bohater1').setInteractive().setScale(0.8);
-        this.add.text(440, 520, "RYSIEK", { fontSize: '36px', fill: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
+        let p1 = this.add.image(400, 360, 'bohater1').setInteractive().setScale(0.8);
+        this.add.text(400, 500, "RYSIEK", { fontSize: '30px', fill: '#0f0' }).setOrigin(0.5);
 
-        // Sławek
-        let p2 = this.add.image(840, 360, 'bohater2').setInteractive().setScale(0.8);
-        this.add.text(840, 520, "SŁAWEK", { fontSize: '36px', fill: '#ffff00', fontStyle: 'bold' }).setOrigin(0.5);
+        let p2 = this.add.image(880, 360, 'bohater2').setInteractive().setScale(0.8);
+        this.add.text(880, 500, "SŁAWEK", { fontSize: '30px', fill: '#ff0' }).setOrigin(0.5);
 
-        p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1', name: 'Rysiek', lv: 0, killed: 0, startTime: Date.now() }));
-        p2.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater2', name: 'Sławek', lv: 0, killed: 0, startTime: Date.now() }));
+        p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1', name: 'Rysiek' }));
+        p2.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater2', name: 'Sławek' }));
     }
 }
 
+/* --- GRA --- */
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
-    init(data) { 
-        this.heroData = data;
-        this.spawnedCount = 0;
-        this.maxTrolls = 15 + (data.lv * 10);
-    }
-
+    init(data) { this.heroData = data; this.score = 0; }
     create() {
-        const bgs = ['tlolv1', 'tlolv2', 'tlolv3'];
-        this.add.image(640, 360, bgs[this.heroData.lv]).setDisplaySize(1280, 720);
-
+        playMusic(this, 'track2');
+        this.add.image(640, 360, 'tlolv1').setDisplaySize(1280, 720);
+        
         this.player = this.physics.add.sprite(200, 360, this.heroData.hero).setScale(0.45).setCollideWorldBounds(true);
         this.trolls = this.physics.add.group();
-        this.projectiles = this.physics.add.group();
-
-        // HUD - Interfejs
-        this.statsText = this.add.text(20, 20, '', { fontSize: '24px', fill: '#fff', backgroundColor: '#000000aa' });
-
-        this.spawnTimer = this.time.addEvent({ delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true });
-
-        // Sterowanie dotykowe
-        let btnA = this.add.circle(1150, 600, 70, 0xff0000, 0.5).setInteractive();
-        this.add.text(1150, 600, "MOC", {fontSize:'24px', fill:'#fff'}).setOrigin(0.5);
-        btnA.on('pointerdown', () => this.fire());
-
-        let btnZ = this.add.circle(1000, 600, 70, 0x00ffff, 0.5).setInteractive();
-        this.add.text(1000, 600, "FALA", {fontSize:'24px', fill:'#fff'}).setOrigin(0.5);
-        btnZ.on('pointerdown', () => this.nova());
-
-        this.physics.add.overlap(this.projectiles, this.trolls, (p, t) => { p.destroy(); this.killTroll(t); });
-        this.physics.add.overlap(this.player, this.trolls, () => this.gameOver());
+        
+        this.time.addEvent({ delay: 1500, callback: this.spawn, callbackScope: this, loop: true });
+        this.physics.add.overlap(this.player, this.trolls, () => this.endGame());
+        
+        this.scoreText = this.add.text(20, 20, `Trolle: 0`, { fontSize: '28px', fill: '#fff' });
     }
 
     update() {
-        // Czas rozgrywki
-        let elapsed = Math.floor((Date.now() - this.heroData.startTime) / 1000);
-        this.statsText.setText(`BOHATER: ${this.heroData.name} | TROLLE: ${this.heroData.killed} | CZAS: ${elapsed}s`);
-
-        if (this.input.activePointer.isDown && this.input.activePointer.x < 800) {
-            this.physics.moveTo(this.player, this.input.activePointer.x, this.input.activePointer.y, 400);
-        } else { this.player.setVelocity(0); }
-
-        if (this.spawnedCount >= this.maxTrolls && this.trolls.countActive() === 0) {
-            this.nextLevel();
-        }
+        if (this.input.activePointer.isDown) this.physics.moveToObject(this.player, this.input.activePointer, 400);
+        else this.player.setVelocity(0);
     }
 
-    spawnTroll() {
-        if (this.spawnedCount >= this.maxTrolls) return;
-        const types = ['tb', 'tk', 'tm'];
-        let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), types[this.heroData.lv] + Phaser.Math.Between(1, 3));
-        if (t) {
-            t.setFlipX(true).setScale(0.4).body.setVelocityX(-200 - (this.heroData.lv * 40));
-            this.tweens.add({ targets: t, y: t.y - 30, duration: 400, yoyo: true, repeat: -1 });
-            this.spawnedCount++;
-        }
+    spawn() {
+        let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), 'tb'+Phaser.Math.Between(1,3));
+        t.setScale(0.4).body.setVelocityX(-250);
     }
 
-    fire() {
-        let p = this.projectiles.create(this.player.x + 50, this.player.y, 'hpower2').setScale(0.2);
-        p.body.setVelocityX(900);
-    }
-
-    nova() {
-        let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
-        this.tweens.add({ targets: fx, scale: 5, alpha: 0, duration: 400, onComplete: () => fx.destroy() });
-        this.trolls.children.iterate(t => {
-            if (t && t.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 300) {
-                this.killTroll(t);
-            }
-        });
-    }
-
-    killTroll(t) {
-        this.heroData.killed++;
-        t.destroy();
-    }
-
-    gameOver() {
-        Leaderboard.save(this.heroData.killed, Math.floor((Date.now() - this.heroData.startTime)/1000));
+    endGame() {
+        let nick = prompt("Horda Cię dopadła! Podaj swój nick:", "Gracz");
+        let records = JSON.parse(localStorage.getItem('troll_records') || '[]');
+        records.push({ name: nick || "Anonim", score: this.score });
+        records.sort((a, b) => b.score - a.score);
+        localStorage.setItem('troll_records', JSON.stringify(records.slice(0, 10)));
         this.scene.start("RankScene");
-    }
-
-    nextLevel() {
-        if (this.heroData.lv < 2) {
-            this.heroData.lv++;
-            this.scene.restart(this.heroData);
-        } else {
-            this.gameOver();
-        }
     }
 }
 
-/* --- SCENA RANKINGU --- */
+/* --- RANKING --- */
 class RankScene extends Phaser.Scene {
     constructor() { super("RankScene"); }
     create() {
-        this.add.rectangle(640, 360, 1280, 720, 0x000000);
-        this.add.text(640, 80, "TOP 10 POGROMCÓW TROLLI", { fontSize: '42px', fill: '#00ff00' }).setOrigin(0.5);
+        playMusic(this, 'track3');
+        this.add.image(640, 360, 'tabelarekordow').setDisplaySize(1280, 720);
         
-        const scores = Leaderboard.get();
-        scores.forEach((s, i) => {
-            this.add.text(300, 180 + (i * 40), `${i+1}. Trolle: ${s.score} | Czas: ${s.time}s | Data: ${s.date}`, { fontSize: '24px', fill: '#fff' });
+        this.add.text(640, 60, "TOP 10 POGROMCÓW", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
+        
+        const records = JSON.parse(localStorage.getItem('troll_records') || '[]');
+        records.forEach((r, i) => {
+            let y = 160 + (i * 45);
+            this.add.text(400, y, `${i+1}. ${r.name}`, { fontSize: '24px', fill: '#fff' });
+            this.add.text(850, y, `${r.score} pkt`, { fontSize: '24px', fill: '#0f0' });
         });
 
-        let btn = this.add.text(640, 650, "POWRÓT DO MENU", { fontSize: '30px', fill: '#ffff00' }).setOrigin(0.5).setInteractive();
+        let btn = this.add.text(640, 660, "POWRÓT", { fontSize: '30px', fill: '#ff0' }).setOrigin(0.5).setInteractive();
         btn.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
