@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PMP vs Horda Troli - Kampania</title>
+    <title>PMP: Horda Troli - Edycja Animowana</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; background-color: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
 <body>
 <script>
-
-let globalVolume = 0.3;
 
 const CONFIG = {
     type: Phaser.AUTO,
@@ -28,233 +26,243 @@ const CONFIG = {
     scene: null
 };
 
-function playMusic(scene, key) {
-    scene.sound.stopAll();
-    if (scene.cache.audio.exists(key)) scene.sound.play(key, { loop: true, volume: globalVolume });
-}
-
-/* --- BOOT --- */
+/* --- SCENA ŁADOWANIA --- */
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
     preload() {
+        // Tła i UI
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tabelarekordow', 'assets/tabelarekordow.png');
-        this.load.image('bohater1', 'assets/bohater1.png');
-        this.load.image('bohater2', 'assets/bohater2.png');
-        this.load.image('hpower2', 'assets/hpower2.png');
-        this.load.image('opower1', 'assets/opower1.png');
         ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
         
+        // Pociski
+        this.load.image('hpower2', 'assets/hpower2.png'); // Kula ognia
+        this.load.image('opower1', 'assets/opower1.png'); // Efekt fali
+
+        // ŁADOWANIE TWOICH PANELI (Sprite Sheets)
+        // Zakładamy klatkę ok. 512x768 (standard dla Twoich grafik 4x4)
+        const frameConfig = { frameWidth: 512, frameHeight: 768 };
+        this.load.spritesheet('p_main', 'assets/bohater1panel1.png', frameConfig);
+        this.load.spritesheet('p_action', 'assets/bohater1panel2.png', frameConfig);
+        this.load.spritesheet('p_damage', 'assets/bohater1panel4.png', frameConfig);
+        this.load.spritesheet('p_run', 'assets/bohater1panel5.png', frameConfig);
+
+        // Trolle (pozostają jako static obrazy lub dodaj ich panele tutaj)
         for(let i=1; i<=3; i++) {
             this.load.image('tb'+i, `assets/tb${i}.png`);
             this.load.image('tk'+i, `assets/tk${i}.png`);
             this.load.image('tm'+i, `assets/tm${i}.png`);
         }
-        
+
+        // Muzyka
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
-        this.load.audio('track3', 'assets/muzyka3.mp3');
     }
-    create() { this.scene.start("StartScene"); }
+
+    create() {
+        // DEFINICJA ANIMACJI RYŚKA
+        // Chód (Panel 1, Rząd 1)
+        this.anims.create({
+            key: 'walk',
+            frames: this.anims.generateFrameNumbers('p_main', { start: 0, end: 3 }),
+            frameRate: 8, repeat: -1
+        });
+
+        // Bieg (Panel 5, Rząd 1)
+        this.anims.create({
+            key: 'run',
+            frames: this.anims.generateFrameNumbers('p_run', { start: 0, end: 3 }),
+            frameRate: 12, repeat: -1
+        });
+
+        // Atak K - Kula ognia (Panel 1, Rząd 3)
+        this.anims.create({
+            key: 'attack_k',
+            frames: this.anims.generateFrameNumbers('p_main', { start: 8, end: 11 }),
+            frameRate: 15, repeat: 0
+        });
+
+        // Atak L - Fala energii (Panel 2, Rząd 1-2)
+        this.anims.create({
+            key: 'attack_l',
+            frames: this.anims.generateFrameNumbers('p_action', { start: 0, end: 7 }),
+            frameRate: 12, repeat: 0
+        });
+
+        // Śmierć (Panel 4, Rząd 3-4)
+        this.anims.create({
+            key: 'death',
+            frames: this.anims.generateFrameNumbers('p_damage', { start: 8, end: 15 }),
+            frameRate: 10, repeat: 0
+        });
+
+        this.scene.start("StartScene");
+    }
 }
 
-/* --- MENU --- */
+/* --- MENU GŁÓWNE --- */
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
     create() {
-        playMusic(this, 'track1');
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
-        
-        let btn = this.add.rectangle(640, 500, 300, 80, 0x000000, 0.8).setInteractive().setStrokeStyle(4, 0xffffff);
-        this.add.text(640, 500, "START", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-        btn.on('pointerdown', () => this.scene.start("SelectScene"));
+        let btn = this.add.rectangle(640, 550, 240, 70, 0x000000, 0.7).setInteractive().setStrokeStyle(3, 0xffffff);
+        this.add.text(640, 550, "START", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
+        btn.on('pointerdown', () => this.scene.start("GameScene"));
 
-        let fsBtn = this.add.text(1250, 30, "⛶", { fontSize: '40px', fill: '#fff' }).setOrigin(1, 0).setInteractive();
-        fsBtn.on('pointerdown', () => { if (!this.scale.isFullscreen) this.scale.startFullscreen(); });
+        // Przycisk FullScreen
+        this.add.text(1250, 30, "⛶", { fontSize: '40px', fill: '#fff' }).setOrigin(1, 0).setInteractive()
+            .on('pointerdown', () => { if (!this.scale.isFullscreen) this.scale.startFullscreen(); });
     }
 }
 
-/* --- SELEKCJA --- */
-class SelectScene extends Phaser.Scene {
-    constructor() { super("SelectScene"); }
-    create() {
-        this.add.text(640, 100, "WYBIERZ WOJOWNIKA", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-        let p1 = this.add.image(440, 360, 'bohater1').setInteractive().setScale(0.7);
-        let p2 = this.add.image(840, 360, 'bohater2').setInteractive().setScale(0.7);
-        p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1', name: 'Rysiek' }));
-        p2.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater2', name: 'Sławek' }));
-    }
-}
-
-/* --- GRA --- */
+/* --- GŁÓWNA ROZGRYWKA --- */
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
-    init(data) {
-        this.heroData = data;
+    init() {
         this.score = 0;
         this.level = 1;
         this.killedInLevel = 0;
-        this.isTransitioning = false;
-        this.lastFire = 0;
-        // Konfiguracja poziomów
-        this.levelConfigs = {
-            1: { goal: 25, speed: 220, prefix: 'tb' },
-            2: { goal: 65, speed: 300, prefix: 'tk' },
-            3: { goal: 100, speed: 400, prefix: 'tm' }
+        this.isDead = false;
+        this.isAttacking = false;
+        this.levelConfig = {
+            1: { goal: 25, speed: 220, type: 'tb' },
+            2: { goal: 65, speed: 310, type: 'tk' },
+            3: { goal: 100, speed: 420, type: 'tm' }
         };
     }
 
     create() {
-        playMusic(this, 'track2');
         this.bg = this.add.image(640, 360, 'tlolv1').setDisplaySize(1280, 720);
         
-        this.player = this.physics.add.sprite(200, 360, this.heroData.hero).setScale(0.32);
-        this.player.setCollideWorldBounds(true).setSize(200, 300);
+        // Tworzenie Gracza z pierwszej klatki
+        this.player = this.physics.add.sprite(200, 360, 'p_main', 0).setScale(0.35);
+        this.player.setCollideWorldBounds(true).setSize(300, 500);
 
         this.trolls = this.physics.add.group();
         this.bullets = this.physics.add.group();
-        
-        this.spawnTimer = this.time.addEvent({ delay: 1400, callback: this.spawn, callbackScope: this, loop: true });
 
-        // Sterowanie
+        // Klawisze
         this.cursors = this.input.keyboard.createCursorKeys();
         this.wasd = this.input.keyboard.addKeys('W,A,S,D');
-        this.keyK = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K);
-        this.keyL = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L);
+        this.keyK = this.input.keyboard.addKey('K');
+        this.keyL = this.input.keyboard.addKey('L');
 
-        this.uiTxt = this.add.text(20, 20, '', { fontSize: '28px', fill: '#fff', stroke: '#000', strokeThickness: 5 });
-        
+        // Spawning
+        this.time.addEvent({ delay: 1300, callback: this.spawnTroll, callbackScope: this, loop: true });
+
+        // UI
+        this.uiTxt = this.add.text(25, 25, '', { fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 4 });
+
+        // Kolizje
         this.physics.add.overlap(this.bullets, this.trolls, (b, t) => {
             b.destroy(); t.destroy(); this.score++; this.killedInLevel++;
         });
-        this.physics.add.overlap(this.player, this.trolls, () => this.gameOver());
-
-        this.createMobileControls();
+        this.physics.add.overlap(this.player, this.trolls, () => this.handleGameOver());
     }
 
-    createMobileControls() {
-        let kBtn = this.add.circle(1150, 600, 60, 0xff0000, 0.6).setInteractive();
-        this.add.text(1150, 600, "K", {fontSize:'40px'}).setOrigin(0.5);
-        kBtn.on('pointerdown', () => this.fire());
-
-        let lBtn = this.add.circle(1000, 600, 60, 0x00ffff, 0.6).setInteractive();
-        this.add.text(1000, 600, "L", {fontSize:'40px'}).setOrigin(0.5);
-        lBtn.on('pointerdown', () => this.nova());
-    }
-
-    spawn() {
-        if (this.isTransitioning) return;
+    spawnTroll() {
+        if (this.isDead) return;
+        let conf = this.levelConfig[this.level];
+        let t = this.trolls.create(1350, Phaser.Math.Between(120, 600), conf.type + Phaser.Math.Between(1,3));
+        t.setScale(0.3).setFlipX(true).body.setVelocityX(-conf.speed);
         
-        let config = this.levelConfigs[this.level];
-        let t = this.trolls.create(1350, Phaser.Math.Between(100, 620), config.prefix + Phaser.Math.Between(1,3));
+        // Animacja bujania trolla
+        this.tweens.add({ targets: t, y: t.y - 20, angle: {from: -5, to: 5}, duration: 300, yoyo: true, repeat: -1 });
+    }
+
+    handleAttackK() {
+        if (this.isAttacking) return;
+        this.isAttacking = true;
+        this.player.play('attack_k');
         
-        if (t) {
-            t.setScale(0.28).setFlipX(true).body.setVelocityX(-config.speed);
-            
-            // Animacja biegu
-            this.tweens.add({
-                targets: t,
-                y: t.y - 15,
-                angle: { from: -5, to: 5 },
-                duration: 250 / (this.level * 0.8), // Szybsza animacja przy wyższej prędkości
-                yoyo: true,
-                repeat: -1
-            });
-        }
-    }
-
-    fire() {
-        if (this.time.now < this.lastFire) return;
-        let b = this.bullets.create(this.player.x+50, this.player.y, 'hpower2').setScale(0.2);
-        b.body.setVelocityX(1000);
-        this.lastFire = this.time.now + 300;
-    }
-
-    nova() {
-        let n = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
-        this.tweens.add({ targets: n, scale: 5, alpha: 0, duration: 400, onComplete: () => n.destroy() });
-        this.trolls.children.iterate(t => {
-            if (t && t.active && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 300) {
-                t.destroy(); this.score++; this.killedInLevel++;
-            }
+        this.time.delayedCall(200, () => {
+            let b = this.bullets.create(this.player.x + 60, this.player.y, 'hpower2').setScale(0.2);
+            b.body.setVelocityX(1100);
         });
+
+        this.player.on('animationcomplete', () => { this.isAttacking = false; });
     }
 
-    nextLevel() {
-        this.isTransitioning = true;
-        this.trolls.clear(true, true);
-        
-        if (this.level >= 3) {
-            this.gameOver("TRIUMF! WSZYSTKIE HORDRY POKONANE!");
-            return;
-        }
+    handleAttackL() {
+        if (this.isAttacking) return;
+        this.isAttacking = true;
+        this.player.play('attack_l');
 
-        this.level++;
-        this.killedInLevel = 0;
-
-        let txt = this.add.text(640, 360, `POZIOM ${this.level}\nSZYBCIEJ I WIĘCEJ!`, { 
-            fontSize: '60px', fill: '#ff0', align: 'center', stroke: '#000', strokeThickness: 8 
-        }).setOrigin(0.5);
-        
-        this.time.delayedCall(3000, () => {
-            txt.destroy();
-            this.bg.setTexture('tlolv' + this.level);
-            this.isTransitioning = false;
+        let nova = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.2).setAlpha(0.8);
+        this.tweens.add({
+            targets: nova, scale: 6, alpha: 0, duration: 500, 
+            onUpdate: () => {
+                this.trolls.children.iterate(t => {
+                    if (t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 250) {
+                        t.destroy(); this.score++; this.killedInLevel++;
+                    }
+                });
+            },
+            onComplete: () => nova.destroy()
         });
+
+        this.time.delayedCall(600, () => { this.isAttacking = false; });
     }
 
     update() {
-        let config = this.levelConfigs[this.level];
-        this.uiTxt.setText(`POZIOM: ${this.level} | POKONANE: ${this.killedInLevel}/${config.goal} | WYNIK: ${this.score}`);
-        
-        if (this.killedInLevel >= config.goal && !this.isTransitioning) {
-            this.nextLevel();
-        }
+        if (this.isDead) return;
 
+        let conf = this.levelConfig[this.level];
+        this.uiTxt.setText(`POZIOM: ${this.level} | TROLLE: ${this.killedInLevel}/${conf.goal} | WYNIK: ${this.score}`);
+
+        if (this.killedInLevel >= conf.goal) this.nextLevel();
+
+        // RUCH I ANIMACJA
         let speed = 650;
+        let moving = false;
         this.player.setVelocity(0);
 
-        if (this.cursors.left.isDown || this.wasd.A.isDown) this.player.setVelocityX(-speed);
-        else if (this.cursors.right.isDown || this.wasd.D.isDown) this.player.setVelocityX(speed);
+        if (this.cursors.left.isDown || this.wasd.A.isDown) { this.player.setVelocityX(-speed); moving = true; }
+        else if (this.cursors.right.isDown || this.wasd.D.isDown) { this.player.setVelocityX(speed); moving = true; }
 
-        if (this.cursors.up.isDown || this.wasd.W.isDown) this.player.setVelocityY(-speed);
-        else if (this.cursors.down.isDown || this.wasd.S.isDown) this.player.setVelocityY(speed);
+        if (this.cursors.up.isDown || this.wasd.W.isDown) { this.player.setVelocityY(-speed); moving = true; }
+        else if (this.cursors.down.isDown || this.wasd.S.isDown) { this.player.setVelocityY(speed); moving = true; }
 
-        if (Phaser.Input.Keyboard.JustDown(this.keyK)) this.fire();
-        if (Phaser.Input.Keyboard.JustDown(this.keyL)) this.nova();
-
-        if (this.input.activePointer.isDown && this.input.activePointer.x < 900) {
-            this.physics.moveTo(this.player, this.input.activePointer.x, this.input.activePointer.y, speed);
+        // Zarządzanie animacją ruchu
+        if (!this.isAttacking) {
+            if (moving) {
+                this.player.play('run', true);
+            } else {
+                this.player.stop();
+                this.player.setFrame(0); // Klatka "IDLE"
+            }
         }
+
+        // Ataki
+        if (Phaser.Input.Keyboard.JustDown(this.keyK)) this.handleAttackK();
+        if (Phaser.Input.Keyboard.JustDown(this.keyL)) this.handleAttackL();
     }
 
-    gameOver(msg = "POKONANY!") {
-        let nick = prompt(msg + "\nTwój ostateczny wynik: " + this.score + "\nPodaj nick do rankingu:");
-        let rec = JSON.parse(localStorage.getItem('pmp_campaign_v1') || '[]');
-        rec.push({ n: nick || "Nieznany", s: this.score });
-        rec.sort((a,b) => b.s - a.s);
-        localStorage.setItem('pmp_campaign_v1', JSON.stringify(rec.slice(0,10)));
-        this.scene.start("RankScene");
+    nextLevel() {
+        if (this.level >= 3) {
+            alert("GRATULACJE! URATOWAŁEŚ KRAINĘ!");
+            this.scene.start("StartScene");
+            return;
+        }
+        this.level++;
+        this.killedInLevel = 0;
+        this.bg.setTexture('tlolv' + this.level);
     }
-}
 
-/* --- RANKING --- */
-class RankScene extends Phaser.Scene {
-    constructor() { super("RankScene"); }
-    create() {
-        playMusic(this, 'track3');
-        this.add.image(640, 360, 'tabelarekordow').setDisplaySize(1280, 720);
-        let rec = JSON.parse(localStorage.getItem('pmp_campaign_v1') || '[]');
-        rec.forEach((r, i) => {
-            this.add.text(400, 180+(i*45), `${i+1}. ${r.n}`, { fontSize: '26px', fill: '#fff' });
-            this.add.text(800, 180+(i*45), `${r.s} PKT`, { fontSize: '26px', fill: '#0f0' });
+    handleGameOver() {
+        if (this.isDead) return;
+        this.isDead = true;
+        this.player.setVelocity(0);
+        this.player.play('death');
+        
+        this.time.delayedCall(1500, () => {
+            let n = prompt("KONIEC GRY! Twój wynik: " + this.score + "\nPodaj nick:");
+            this.scene.start("StartScene");
         });
-        let b = this.add.text(640, 660, "MENU", { fontSize: '30px', fill: '#ff0' }).setOrigin(0.5).setInteractive();
-        b.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
-const game = new Phaser.Game(Object.assign(CONFIG, { scene: [BootScene, StartScene, SelectScene, GameScene, RankScene] }));
+const game = new Phaser.Game(Object.assign(CONFIG, { scene: [BootScene, StartScene, GameScene] }));
 </script>
 </body>
 </html>
