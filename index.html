@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Przerób Mnie Panie: Troll Horde</title>
-    <!-- Biblioteka Phaser musi być załadowana jako pierwsza -->
+    <title>PMP: Troll Horde</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; touch-action: none; }
@@ -12,50 +11,32 @@
     </style>
 </head>
 <body>
-
 <script>
-/* =========================================================== 
-   KONFIGURACJA SILNIKA
-   =========================================================== */
+
+/* --- KONFIGURACJA --- */
 const CONFIG = {
     type: Phaser.AUTO,
     width: window.innerWidth,
     height: window.innerHeight,
-    physics: { 
-        default: 'arcade', 
-        arcade: { gravity: { y: 0 }, debug: false } 
-    },
-    scene: null // Sceny przypiszemy na końcu pliku
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }
 };
 
-const LEVELS = [
-    { name: "Ścieżka Białego Wejścia", horde: 15, types: ["bagienny"], bg: 'tlolv1' },
-    { name: "Kamienna Przełęcz", horde: 25, types: ["bagienny", "kamienny"], bg: 'tlolv2' },
-    { name: "Mchowy Amfiteatr", horde: 40, types: ["bagienny", "mchowy"], bg: 'tlolv3' }
-];
-
-/* =========================================================== 
-   SCENA 1: EKRAN STARTOWY
-   =========================================================== */
+/* --- SCENA 1: START --- */
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
     preload() {
-        this.load.image('oknoglowne', 'assets/oknoglowne.png');[cite: 1]
+        // Ładowanie tylko oknaglowne.png na start
+        this.load.image('oknoglowne', 'assets/oknoglowne.png');
     }
     create() {
-        this.add.image(this.scale.width / 2, this.scale.height / 2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
-        
-        let btn = this.add.rectangle(this.scale.width/2, this.scale.height/2 + 100, 260, 70, 0x000000, 0.5)
-            .setInteractive().setStrokeStyle(3, 0xffffff);
-        this.add.text(this.scale.width/2, this.scale.height/2 + 100, "START", { fontSize: '40px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
+        this.add.image(this.scale.width/2, this.scale.height/2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
+        let btn = this.add.rectangle(this.scale.width/2, this.scale.height/2 + 100, 200, 60, 0x000000, 0.7).setInteractive().setStrokeStyle(2, 0xffffff);
+        this.add.text(this.scale.width/2, this.scale.height/2 + 100, "START", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
         btn.on('pointerdown', () => this.scene.start("CharacterSelectScene"));
     }
 }
 
-/* =========================================================== 
-   SCENA 2: WYBÓR POSTACI
-   =========================================================== */
+/* --- SCENA 2: WYBÓR --- */
 class CharacterSelectScene extends Phaser.Scene {
     constructor() { super("CharacterSelectScene"); }
     preload() {
@@ -63,191 +44,87 @@ class CharacterSelectScene extends Phaser.Scene {
         this.load.image('bohater2', 'assets/bohater2.png');[cite: 1]
     }
     create() {
-        this.add.text(this.scale.width/2, 100, "WYBIERZ SWOJEGO BOHATERA", { fontSize: '32px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-        
+        this.add.text(this.scale.width/2, 100, "WYBIERZ PANA", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
         let p1 = this.add.image(this.scale.width * 0.35, this.scale.height/2, 'bohater1').setInteractive().setScale(0.6);
         let p2 = this.add.image(this.scale.width * 0.65, this.scale.height/2, 'bohater2').setInteractive().setScale(0.6);
-
         p1.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater1', levelIndex: 0 }));
         p2.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater2', levelIndex: 0 }));
-
-        // Efekt najechania
-        [p1, p2].forEach(p => {
-            p.on('pointerover', () => p.setScale(0.7));
-            p.on('pointerout', () => p.setScale(0.6));
-        });
     }
 }
 
-/* =========================================================== 
-   SCENA 3: GŁÓWNA GRA
-   =========================================================== */
+/* --- SCENA 3: GRA --- */
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
-
-    init(data) {
-        this.levelIndex = data.levelIndex || 0;
-        this.playerKey = data.playerKey || 'bohater1';
-        this.isGameOver = false;
-    }
+    init(data) { this.levelIndex = data.levelIndex; this.playerKey = data.playerKey; }
 
     preload() {
-        // Tła
+        // TŁA (JPEG)
         this.load.image('tlolv1', 'assets/tlolv1.jpeg');
         this.load.image('tlolv2', 'assets/tlolv2.jpeg');
         this.load.image('tlolv3', 'assets/tlolv3.jpeg');
-        this.load.image('wTitle', 'assets/wTitle.png');
-        // Moce i Trolle[cite: 1]
+        this.load.image('wTitle', 'assets/wTitle.png');[cite: 1]
+
+        // MOCE[cite: 1]
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
+
+        // TROLLE (PNG) - ładowanie ręczne dla pewności[cite: 1]
         for(let i=1; i<=3; i++) {
-            this.load.image(`tb${i}`, `assets/tb${i}.png`);
-            this.load.image(`tk${i}`, `assets/tk${i}.png`);
-            this.load.image(`tm${i}`, `assets/tm${i}.png`);
+            this.load.image('tb'+i, 'assets/tb'+i.png);
+            this.load.image('tk'+i, 'assets/tk'+i.png);
+            this.load.image('tm'+i, 'assets/tm'+i.png);
         }
     }
 
     create() {
-        const lvl = LEVELS[this.levelIndex];
-        this.add.image(this.scale.width/2, this.scale.height/2, lvl.bg).setDisplaySize(this.scale.width, this.scale.height);
+        const bgKey = ['tlolv1', 'tlolv2', 'tlolv3'][this.levelIndex];
+        this.add.image(this.scale.width/2, this.scale.height/2, bgKey).setDisplaySize(this.scale.width, this.scale.height);
 
-        this.player = this.physics.add.sprite(200, this.scale.height/2, this.playerKey);
-        this.player.setScale(0.4).setCollideWorldBounds(true);
-        this.player.cooldowns = { flash: 0, impulse: 0 };
-
+        this.player = this.physics.add.sprite(200, this.scale.height/2, this.playerKey).setScale(0.4).setCollideWorldBounds(true);
         this.trolls = this.physics.add.group();
         this.projectiles = this.physics.add.group();
 
-        this.spawnTimer = this.time.addEvent({ 
-            delay: 1500, callback: () => this.spawnTroll(lvl.types), repeat: lvl.horde - 1 
-        });
+        // Spawn co 1.5 sekundy
+        this.time.addEvent({ delay: 1500, callback: this.spawnTroll, callbackScope: this, repeat: 20 });
 
         // Sterowanie
-        this.cursors = this.input.keyboard.createCursorKeys();
         this.keyA = this.input.keyboard.addKey('A');
         this.keyZ = this.input.keyboard.addKey('Z');
 
-        // Przyciski ekranowe
-        this.createMobileButtons();
-
-        // Kolizje
-        this.physics.add.overlap(this.projectiles, this.trolls, this.hitTroll, null, this);
-        this.physics.add.overlap(this.player, this.trolls, this.handleGameOver, null, this);
-    }
-
-    createMobileButtons() {
-        let pad = 80;
-        let btnA = this.add.circle(this.scale.width - pad, this.scale.height - pad * 2.2, 45, 0xff0000, 0.4).setInteractive();
-        this.add.text(this.scale.width - pad - 10, this.scale.height - pad * 2.2 - 15, "A", {fontSize: '30px', fill: '#fff'});
-        
-        let btnZ = this.add.circle(this.scale.width - pad, this.scale.height - pad, 45, 0x00ff00, 0.4).setInteractive();
-        this.add.text(this.scale.width - pad - 10, this.scale.height - pad - 15, "Z", {fontSize: '30px', fill: '#fff'});
-
-        btnA.on('pointerdown', () => this.useImpulse());
-        btnZ.on('pointerdown', () => this.useFlash());
+        this.physics.add.overlap(this.projectiles, this.trolls, (p, t) => { p.destroy(); t.destroy(); });
+        this.physics.add.overlap(this.player, this.trolls, () => location.reload());
     }
 
     update() {
-        if (this.isGameOver) return;
+        if (this.input.activePointer.isDown) this.physics.moveToObject(this.player, this.input.activePointer, 300);
+        else this.player.setVelocity(0);
 
-        // Podążanie za myszką
-        if (this.input.activePointer.isDown && this.input.activePointer.x < this.scale.width - 150) {
-            this.physics.moveToObject(this.player, this.input.activePointer, 300);
-        } else {
-            this.player.setVelocity(0);
+        if (Phaser.Input.Keyboard.JustDown(this.keyA)) {
+            let p = this.projectiles.create(this.player.x + 30, this.player.y, 'hpower2').setScale(0.15);
+            p.body.setVelocityX(700);
         }
-
-        // Strzał z klawiatury
-        if (Phaser.Input.Keyboard.JustDown(this.keyA)) this.useImpulse();
-        if (Phaser.Input.Keyboard.JustDown(this.keyZ)) this.useFlash();
-
-        // Sprawdzanie wygranej
-        if (this.spawnTimer.getRepeatCount() === 0 && this.trolls.countActive() === 0) {
-            if (this.levelIndex < LEVELS.length - 1) this.scene.start("TransitionScene", { levelIndex: this.levelIndex + 1, playerKey: this.playerKey });
-            else this.scene.start("WinScene");
+        if (Phaser.Input.Keyboard.JustDown(this.keyZ)) {
+            let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
+            this.tweens.add({ targets: fx, scale: 3, alpha: 0, duration: 400, onComplete: () => fx.destroy() });
+            this.trolls.children.iterate(t => { 
+                if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 200) t.destroy(); 
+            });
         }
     }
 
-    spawnTroll(types) {
-        if (this.isGameOver) return;
-        const type = Phaser.Utils.Array.GetRandom(types);
-        const variant = Phaser.Math.Between(1, 3);
-        let troll = this.trolls.create(this.scale.width + 50, Phaser.Math.Between(80, this.scale.height - 80), `t${type[0]}${variant}`);
-        troll.setFlipX(true).setScale(0.35);
-        troll.hp = (type === 'kamienny') ? 3 : 1;
-        troll.body.setVelocityX(type === 'kamienny' ? -90 : -160);
-        
-        // Falowanie góra-dół
-        this.tweens.add({ targets: troll, y: '+=40', duration: 1200, yoyo: true, repeat: -1 });
-    }
-
-    useImpulse() {
-        if (this.player.cooldowns.impulse > Date.now()) return;
-        this.player.cooldowns.impulse = Date.now() + 600;
-        let p = this.projectiles.create(this.player.x + 30, this.player.y, 'hpower2').setScale(0.15);
-        p.body.setVelocityX(700);
-    }
-
-    hitTroll(proj, troll) {
-        proj.destroy();
-        troll.hp -= 1;
-        troll.setTint(0xffffff);
-        this.time.delayedCall(100, () => troll.clearTint());
-        troll.x += 15; // Knockback
-        if (troll.hp <= 0) {
-            this.cameras.main.shake(100, 0.005);
-            troll.destroy();
+    spawnTroll() {
+        const types = ['tb', 'tk', 'tm'];
+        let type = types[this.levelIndex] || 'tb';
+        let variant = Phaser.Math.Between(1, 3);
+        let troll = this.trolls.create(this.scale.width + 50, Phaser.Math.Between(50, this.scale.height - 50), type + variant);
+        if(troll) {
+            troll.setFlipX(true).setScale(0.35);
+            troll.body.setVelocityX(-150);
         }
     }
-
-    useFlash() {
-        if (this.player.cooldowns.flash > Date.now()) return;
-        this.player.cooldowns.flash = Date.now() + 2500;
-        let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
-        this.tweens.add({ targets: fx, scale: 3, alpha: 0, duration: 400, onComplete: () => fx.destroy() });
-        this.trolls.children.iterate(t => { 
-            if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 200) t.destroy(); 
-        });
-    }
-
-    handleGameOver() {
-        if (this.isGameOver) return;
-        this.isGameOver = true;
-        this.physics.pause();
-        this.scene.start("GameOverScene", { levelIndex: this.levelIndex, playerKey: this.playerKey });
-    }
 }
 
-/* =========================================================== 
-   SCENY POMOCNICZE
-   =========================================================== */
-class TransitionScene extends Phaser.Scene { 
-    constructor() { super("TransitionScene"); } 
-    create(data) { 
-        this.add.image(this.scale.width/2, this.scale.height/2, 'wTitle').setDisplaySize(this.scale.width, this.scale.height); 
-        this.time.delayedCall(2000, () => this.scene.start("GameScene", data)); 
-    } 
-}
-class GameOverScene extends Phaser.Scene { 
-    constructor() { super("GameOverScene"); } 
-    create(data) { 
-        this.add.rectangle(0,0,this.scale.width,this.scale.height,0x000000,0.8).setOrigin(0);
-        this.add.text(this.scale.width/2, this.scale.height/2, "PRZEGRANA", {fontSize:'50px', fill:'#f00'}).setOrigin(0.5); 
-        this.add.text(this.scale.width/2, this.scale.height/2 + 70, "Kliknij by wrócić", {fontSize:'20px', fill:'#fff'}).setOrigin(0.5);
-        this.input.once('pointerdown', () => this.scene.start("StartScene")); 
-    } 
-}
-class WinScene extends Phaser.Scene { 
-    constructor() { super("WinScene"); } 
-    create() { 
-        this.add.text(this.scale.width/2, this.scale.height/2, "WYGRANA!", {fontSize:'60px', fill:'#0f0'}).setOrigin(0.5); 
-        this.input.once('pointerdown', () => this.scene.start("StartScene")); 
-    } 
-}
-
-// URUCHOMIENIE
-CONFIG.scene = [StartScene, CharacterSelectScene, GameScene, TransitionScene, GameOverScene, WinScene];
-new Phaser.Game(CONFIG);
+const game = new Phaser.Game(Object.assign(CONFIG, { scene: [StartScene, CharacterSelectScene, GameScene] }));
 </script>
 </body>
 </html>
