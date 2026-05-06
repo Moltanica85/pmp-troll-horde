@@ -1,12 +1,11 @@
 /* =========================================================== 
-   PRZERÓB MNIE PANIE: TROLL HORDE (WERSJA GITHUB - STABILNA) 
+   PRZERÓB MNIE PANIE: TROLL HORDE (WERSJA GITHUB - FINAL) 
    =========================================================== */
 
 const CONFIG = {
     type: Phaser.AUTO,
     width: window.innerWidth,
     height: window.innerHeight,
-    render: { antialias: true, pixelArt: false },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene: null 
 };
@@ -20,17 +19,17 @@ const LEVELS = [
 class MenuScene extends Phaser.Scene {
     constructor() { super("MenuScene"); }
     preload() {
-        // Używamy ścieżek relatywnych pasujących do struktury Twojego repozytorium
-        this.load.image('oknoglowne', 'assets/oknoglowne.png');
-        this.load.image('bohater1', 'assets/bohater1.png');
-        this.load.image('bohater2', 'assets/bohater2.png');
+        // Ustawiamy ścieżkę bazową dla wszystkich plików
+        this.load.setPath('assets/');
+        this.load.image('oknoglowne', 'oknoglowne.png');
+        this.load.image('bohater1', 'bohater1.png');
+        this.load.image('bohater2', 'bohater2.png');
     }
     create() {
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
         
-        this.add.text(this.scale.width / 2, 80, "PRZERÓB MNIE PANIE", { fontSize: '48px', fill: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-        this.add.text(this.scale.width / 2, 140, "WYBIERZ POSTAĆ", { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
-
+        this.add.text(this.scale.width / 2, 80, "PRZERÓB MNIE PANIE", { fontSize: '48px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+        
         let p1 = this.add.image(this.scale.width * 0.35, this.scale.height * 0.6, 'bohater1').setInteractive().setScale(0.5);
         let p2 = this.add.image(this.scale.width * 0.65, this.scale.height * 0.6, 'bohater2').setInteractive().setScale(0.5);
 
@@ -45,25 +44,35 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.levelIndex = data.levelIndex || 0;
         this.playerKey = data.playerKey || 'bohater1';
-        this.isGameOver = false;
     }
 
     preload() {
-        // Ładowanie tła i trolli zgodnie z Twoimi rozszerzeniami na screenie
-        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
-        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
-        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
-        this.load.image('wTitle', 'assets/wTitle.png');
+        this.load.setPath('assets/');
         
-        this.load.image('hpower2', 'assets/hpower2.jpeg');
-        this.load.image('opower1', 'assets/opower1.jpeg');
+        // Tła i Ekrany - używam dokładnie takich nazw jak na Twojej liście
+        this.load.image('tlolv1', 'tlolv1.jpeg');
+        this.load.image('tlolv2', 'tlolv2.jpeg');
+        this.load.image('tlolv3', 'tlolv3.jpeg');
+        this.load.image('wTitle', 'wTitle.png');
+        
+        // Moce[cite: 1]
+        this.load.image('hpower2', 'hpower2.jpeg');
+        this.load.image('opower1', 'opower1.jpeg');
 
-        // Trolle - ważne: sprawdzaj czy to .png czy .jpeg
-        for(let i=1; i<=3; i++) {
-            this.load.image(`tb${i}`, `assets/tb${i}.png`);
-            this.load.image(`tk${i}`, `assets/tk${i}.jpeg`);
-            this.load.image(`tm${i}`, `assets/tm${i}.png`);
-        }
+        // Trolle Bagienne (.png)[cite: 1]
+        this.load.image('tb1', 'tb1.png');
+        this.load.image('tb2', 'tb2.png');
+        this.load.image('tb3', 'tb3.png');
+        
+        // Trolle Kamienne (.jpeg)[cite: 1]
+        this.load.image('tk1', 'tk1.jpeg');
+        this.load.image('tk2', 'tk2.jpeg');
+        this.load.image('tk3', 'tk3.jpeg');
+
+        // Trolle Mchowe (.png)[cite: 1]
+        this.load.image('tm1', 'tm1.png');
+        this.load.image('tm2', 'tm2.png');
+        this.load.image('tm3', 'tm3.png');
     }
 
     create() {
@@ -90,13 +99,11 @@ class GameScene extends Phaser.Scene {
     }
 
     spawnTroll(types) {
-        if (this.isGameOver) return;
         const type = Phaser.Utils.Array.GetRandom(types);
         const variant = Phaser.Math.Between(1, 3);
         let key = (type === 'bagienny') ? `tb${variant}` : (type === 'kamienny' ? `tk${variant}` : `tm${variant}`);
 
         let troll = this.trolls.create(this.scale.width + 100, Phaser.Math.Between(100, this.scale.height - 100), key);
-        troll.type = type;
         troll.setScale(0.4);
         troll.body.setVelocityX(type === 'kamienny' ? -60 : -130);
     }
@@ -106,7 +113,6 @@ class GameScene extends Phaser.Scene {
         this.player.cooldowns.flash = Date.now() + 3000;
         let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.2).setAlpha(0.8);
         this.tweens.add({ targets: fx, scale: 2, alpha: 0, duration: 500, onComplete: () => fx.destroy() });
-        this.trolls.children.iterate(t => { if(t) { t.setTint(0xff0000); this.time.delayedCall(1000, () => t && t.active && t.clearTint()); }});
     }
 
     useImpulse() {
@@ -114,18 +120,14 @@ class GameScene extends Phaser.Scene {
         this.player.cooldowns.impulse = Date.now() + 2000;
         let fx = this.add.image(this.player.x + 50, this.player.y, 'hpower2').setScale(0.5);
         this.tweens.add({ targets: fx, x: '+=300', alpha: 0, duration: 400, onComplete: () => fx.destroy() });
-        this.trolls.children.iterate(t => { if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 300) t.x += 150; });
     }
 
     handleGameOver() {
-        if(this.isGameOver) return;
-        this.isGameOver = true;
         this.physics.pause();
         this.scene.start("GameOverScene", { levelIndex: this.levelIndex, playerKey: this.playerKey });
     }
 
     update() {
-        if (this.isGameOver) return;
         this.trolls.children.iterate(t => {
             if (t && t.active && t.x < -100) this.handleGameOver();
         });
@@ -140,7 +142,6 @@ class TransitionScene extends Phaser.Scene {
     constructor() { super("TransitionScene"); }
     create(data) {
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'wTitle').setDisplaySize(this.scale.width, this.scale.height);
-        this.add.text(this.scale.width/2, this.scale.height - 50, "PRZYGOTUJ SIĘ...", { fontSize: '20px', fill: '#fff' }).setOrigin(0.5);
         this.time.delayedCall(2000, () => this.scene.start("GameScene", data));
     }
 }
@@ -148,9 +149,7 @@ class TransitionScene extends Phaser.Scene {
 class GameOverScene extends Phaser.Scene {
     constructor() { super("GameOverScene"); }
     create(data) {
-        this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.7).setOrigin(0);
-        this.add.text(this.scale.width/2, this.scale.height/2, "PRZERÓBKA NIEUDANA", { fontSize: '40px', fill: '#f00', fontStyle: 'bold' }).setOrigin(0.5);
-        this.add.text(this.scale.width/2, this.scale.height/2 + 60, "Kliknij, by spróbować ponownie", { fontSize: '20px', fill: '#fff' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2, "KONIEC GRY", { fontSize: '40px', fill: '#f00' }).setOrigin(0.5);
         this.input.once('pointerdown', () => this.scene.start("GameScene", data));
     }
 }
@@ -158,7 +157,7 @@ class GameOverScene extends Phaser.Scene {
 class WinScene extends Phaser.Scene {
     constructor() { super("WinScene"); }
     create() {
-        this.add.text(this.scale.width/2, this.scale.height/2, "KLUCZ BIELI URATOWANY!", { fontSize: '40px', fill: '#0f0', fontStyle: 'bold' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2, "WYGRANA!", { fontSize: '40px', fill: '#0f0' }).setOrigin(0.5);
         this.input.once('pointerdown', () => this.scene.start("MenuScene"));
     }
 }
