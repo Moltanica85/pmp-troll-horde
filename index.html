@@ -1,12 +1,31 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Przerób Mnie Panie: Troll Horde</title>
+    <!-- Ładowanie biblioteki Phaser z zaufanego źródła CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+
+<script>
 /* =========================================================== 
-   PRZERÓB MNIE PANIE: TROLL HORDE (WERSJA GITHUB - FINAL) 
+   KONFIGURACJA I LOGIKA GRY (Zintegrowana)
    =========================================================== */
 
 const CONFIG = {
     type: Phaser.AUTO,
     width: window.innerWidth,
     height: window.innerHeight,
-    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+    physics: { 
+        default: 'arcade', 
+        arcade: { gravity: { y: 0 }, debug: false } 
+    },
     scene: null 
 };
 
@@ -16,20 +35,20 @@ const LEVELS = [
     { name: "Mchowy Amfiteatr", horde: 40, types: ["bagienny", "mchowy"], bg: 'tlolv3' }
 ];
 
+// --- SCENA MENU ---
 class MenuScene extends Phaser.Scene {
     constructor() { super("MenuScene"); }
     preload() {
-        // Ustawiamy ścieżkę bazową dla wszystkich plików
-        this.load.setPath('assets/');
-        this.load.image('oknoglowne', 'oknoglowne.png');
-        this.load.image('bohater1', 'bohater1.png');
-        this.load.image('bohater2', 'bohater2.png');
+        // Ścieżki do plików graficznych w Twoim folderze assets[cite: 1]
+        this.load.image('oknoglowne', 'assets/oknoglowne.png');
+        this.load.image('bohater1', 'assets/bohater1.png');
+        this.load.image('bohater2', 'assets/bohater2.png');
     }
     create() {
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
-        
         this.add.text(this.scale.width / 2, 80, "PRZERÓB MNIE PANIE", { fontSize: '48px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
         
+        // Wybór postaci[cite: 1]
         let p1 = this.add.image(this.scale.width * 0.35, this.scale.height * 0.6, 'bohater1').setInteractive().setScale(0.5);
         let p2 = this.add.image(this.scale.width * 0.65, this.scale.height * 0.6, 'bohater2').setInteractive().setScale(0.5);
 
@@ -38,6 +57,7 @@ class MenuScene extends Phaser.Scene {
     }
 }
 
+// --- SCENA GRY ---
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
 
@@ -47,32 +67,20 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.setPath('assets/');
-        
-        // Tła i Ekrany - używam dokładnie takich nazw jak na Twojej liście
-        this.load.image('tlolv1', 'tlolv1.jpeg');
-        this.load.image('tlolv2', 'tlolv2.jpeg');
-        this.load.image('tlolv3', 'tlolv3.jpeg');
-        this.load.image('wTitle', 'wTitle.png');
-        
-        // Moce[cite: 1]
-        this.load.image('hpower2', 'hpower2.jpeg');
-        this.load.image('opower1', 'opower1.jpeg');
+        // Kompletny zestaw grafik z Twojego repozytorium
+        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
+        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
+        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
+        this.load.image('wTitle', 'assets/wTitle.png');
+        this.load.image('hpower2', 'assets/hpower2.jpeg');
+        this.load.image('opower1', 'assets/opower1.jpeg');
 
-        // Trolle Bagienne (.png)[cite: 1]
-        this.load.image('tb1', 'tb1.png');
-        this.load.image('tb2', 'tb2.png');
-        this.load.image('tb3', 'tb3.png');
-        
-        // Trolle Kamienne (.jpeg)[cite: 1]
-        this.load.image('tk1', 'tk1.jpeg');
-        this.load.image('tk2', 'tk2.jpeg');
-        this.load.image('tk3', 'tk3.jpeg');
-
-        // Trolle Mchowe (.png)[cite: 1]
-        this.load.image('tm1', 'tm1.png');
-        this.load.image('tm2', 'tm2.png');
-        this.load.image('tm3', 'tm3.png');
+        // Trolle - ładowanie wszystkich wariantów[cite: 1]
+        for(let i=1; i<=3; i++) {
+            this.load.image(`tb${i}`, `assets/tb${i}.png`);
+            this.load.image(`tk${i}`, `assets/tk${i}.jpeg`);
+            this.load.image(`tm${i}`, `assets/tm${i}.png`);
+        }
     }
 
     create() {
@@ -131,13 +139,14 @@ class GameScene extends Phaser.Scene {
         this.trolls.children.iterate(t => {
             if (t && t.active && t.x < -100) this.handleGameOver();
         });
-        if (this.spawnTimer.getRepeatCount() === 0 && this.trolls.countActive() === 0) {
+        if (this.spawnTimer && this.spawnTimer.getRepeatCount() === 0 && this.trolls.countActive() === 0) {
             if (this.levelIndex < LEVELS.length - 1) this.scene.start("TransitionScene", { levelIndex: this.levelIndex + 1, playerKey: this.playerKey });
             else this.scene.start("WinScene");
         }
     }
 }
 
+// --- SCENY POMOCNICZE ---
 class TransitionScene extends Phaser.Scene {
     constructor() { super("TransitionScene"); }
     create(data) {
@@ -149,6 +158,7 @@ class TransitionScene extends Phaser.Scene {
 class GameOverScene extends Phaser.Scene {
     constructor() { super("GameOverScene"); }
     create(data) {
+        this.add.rectangle(0,0, this.scale.width, this.scale.height, 0x000000, 0.7).setOrigin(0);
         this.add.text(this.scale.width/2, this.scale.height/2, "KONIEC GRY", { fontSize: '40px', fill: '#f00' }).setOrigin(0.5);
         this.input.once('pointerdown', () => this.scene.start("GameScene", data));
     }
@@ -162,5 +172,10 @@ class WinScene extends Phaser.Scene {
     }
 }
 
+// URUCHOMIENIE GRY
 CONFIG.scene = [MenuScene, GameScene, TransitionScene, GameOverScene, WinScene];
 new Phaser.Game(CONFIG);
+
+</script>
+</body>
+</html>
