@@ -1,3 +1,18 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PMP: Horda Troli</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
+    <style>
+        body { margin: 0; background-color: #000; overflow: hidden; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+<script>
+
 let globalVolume = 0.3;
 
 const CONFIG = {
@@ -15,18 +30,21 @@ const CONFIG = {
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
     preload() {
-        // Tła i UI
+        // Obrazy stałe
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // ŁADOWANIE POSTACI - bez podawania fWidth, zrobimy to dynamicznie w create
-        this.load.image('p_idle_img', 'assets/bohater1panel1.png');
-        this.load.image('p_blue_img', 'assets/bohater1panel2.png');
-        this.load.image('p_green_img', 'assets/bohater1panel3.png');
-        this.load.image('p_death_img', 'assets/bohater1panel4.png');
-        this.load.image('p_run_img', 'assets/bohater1panel5.png');
+        // TWOJE PANELE - Ustawiamy 512x768 (2048/4 i 3072/4)
+        const f = { frameWidth: 512, frameHeight: 768 };
+        
+        // Ładujemy jako PNG, bo tak masz na GitHubie
+        this.load.spritesheet('p_idle', 'assets/bohater1panel1.png', f);
+        this.load.spritesheet('p_blue', 'assets/bohater1panel2.png', f);
+        this.load.spritesheet('p_green', 'assets/bohater1panel3.png', f);
+        this.load.spritesheet('p_death', 'assets/bohater1panel4.png', f);
+        this.load.spritesheet('p_run', 'assets/bohater1panel5.png', f);
 
         // Przeciwnicy
         for(let i=1; i<=3; i++) { this.load.image('tb'+i, `assets/tb${i}.png`); }
@@ -37,21 +55,6 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // FUNKCJA POMOCNICZA: Tworzy spritesheet na podstawie załadowanego obrazka
-        const createSpriteSheet = (key, texture) => {
-            const img = this.textures.get(texture).getSourceImage();
-            this.textures.addSpriteSheet(key, img, {
-                frameWidth: img.width / 4,
-                frameHeight: img.height / 4
-            });
-        };
-
-        createSpriteSheet('p_idle', 'p_idle_img');
-        createSpriteSheet('p_blue', 'p_blue_img');
-        createSpriteSheet('p_green', 'p_green_img');
-        createSpriteSheet('p_death', 'p_death_img');
-        createSpriteSheet('p_run', 'p_run_img');
-
         // Animacje
         this.anims.create({ key: 'idle', frames: this.anims.generateFrameNumbers('p_idle', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
         this.anims.create({ key: 'run', frames: this.anims.generateFrameNumbers('p_run', { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
@@ -73,18 +76,9 @@ class StartScene extends Phaser.Scene {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
         
         let startBtn = this.add.rectangle(640, 480, 250, 80, 0x000000, 0.5).setInteractive().setStrokeStyle(4, 0xffffff);
-        this.add.text(640, 480, "START", { fontSize: '42px', fill: '#fff' }).setOrigin(0.5);
+        this.add.text(640, 480, "START", { fontSize: '42px', fill: '#fff', fontFamily: 'Arial' }).setOrigin(0.5);
+        
         startBtn.on('pointerdown', () => this.scene.start("SelectScene"));
-
-        // Suwak głośności
-        let volTxt = this.add.text(640, 600, `MUZYKA: ${Math.round(globalVolume * 100)}%`).setOrigin(0.5);
-        this.input.on('pointermove', (p) => {
-            if(p.isDown && p.y > 550) {
-                globalVolume = Phaser.Math.Clamp((p.x - 540) / 200, 0, 1);
-                this.sound.setVolume(globalVolume);
-                volTxt.setText(`MUZYKA: ${Math.round(globalVolume * 100)}%`);
-            }
-        });
     }
 }
 
@@ -93,12 +87,14 @@ class SelectScene extends Phaser.Scene {
     create() {
         this.add.text(640, 100, "WYBIERZ BOHATERA", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
         
+        // Rysiek
         let r = this.add.sprite(440, 350, 'p_idle', 0).setScale(0.5).setInteractive();
-        this.add.text(440, 550, "RYSIEK", {fontSize:'30px'}).setOrigin(0.5);
+        this.add.text(440, 550, "RYSIEK", {fontSize:'30px', fill:'#fff'}).setOrigin(0.5);
         r.on('pointerdown', () => this.scene.start("GameScene", { hero: 'rysiek', tint: 0xffffff, special: 'atk_blue' }));
 
+        // Sławek
         let s = this.add.sprite(840, 350, 'p_idle', 0).setScale(0.5).setInteractive().setTint(0x99ff99);
-        this.add.text(840, 550, "SŁAWEK", {fontSize:'30px'}).setOrigin(0.5);
+        this.add.text(840, 550, "SŁAWEK", {fontSize:'30px', fill:'#fff'}).setOrigin(0.5);
         s.on('pointerdown', () => this.scene.start("GameScene", { hero: 'slawek', tint: 0x99ff99, special: 'atk_green' }));
     }
 }
@@ -113,7 +109,7 @@ class GameScene extends Phaser.Scene {
 
         this.bg = this.add.image(640, 360, 'tlolv1').setDisplaySize(1280, 720);
         this.player = this.physics.add.sprite(200, 400, 'p_idle', 0).setScale(0.4);
-        this.player.setTint(this.hero.tint).setCollideWorldBounds(true).setSize(200, 400);
+        this.player.setTint(this.hero.tint).setCollideWorldBounds(true).setSize(200, 400).setOffset(150, 150);
 
         this.trolls = this.physics.add.group();
         this.bullets = this.physics.add.group();
@@ -153,6 +149,7 @@ class GameScene extends Phaser.Scene {
     }
 
     atkK() {
+        if(this.isAttacking) return;
         this.isAttacking = true;
         this.player.play('atk_k');
         let b = this.bullets.create(this.player.x + 50, this.player.y, 'hpower2').setScale(0.2);
@@ -161,6 +158,7 @@ class GameScene extends Phaser.Scene {
     }
 
     atkL() {
+        if(this.isAttacking) return;
         this.isAttacking = true;
         this.player.play(this.hero.special);
         let boom = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
@@ -180,3 +178,6 @@ class GameScene extends Phaser.Scene {
 }
 
 const game = new Phaser.Game(Object.assign(CONFIG, { scene: [BootScene, StartScene, SelectScene, GameScene] }));
+</script>
+</body>
+</html>
