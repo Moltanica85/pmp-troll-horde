@@ -1,6 +1,5 @@
 /* ===========================================================
-   PRZERÓB MNIE PANIE: TROLL HORDE (WERSJA 3.0 - FINAL)
-   Silnik: Phaser 3
+   PRZERÓB MNIE PANIE: TROLL HORDE (WERSJA GITHUB)
    =========================================================== */
 
 const CONFIG = {
@@ -9,7 +8,7 @@ const CONFIG = {
     height: window.innerHeight,
     render: { antialias: true, pixelArt: false },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-    scene: null // Przypisane na końcu pliku
+    scene: null 
 };
 
 const LEVELS = [
@@ -18,27 +17,30 @@ const LEVELS = [
     { name: "Mchowy Amfiteatr", horde: 40, types: ["bagienny", "mchowy"], bg: 'tlolv3' }
 ];
 
-// --- SCENA STARTOWA: WYBÓR POSTACI ---
+// --- MENU GŁÓWNE ---
 class MenuScene extends Phaser.Scene {
     constructor() { super("MenuScene"); }
     preload() {
-        this.load.image('oknoglowne', 'assets/oknoglowne.png');
-        this.load.image('bohater1', 'assets/bohater1.png');
-        this.load.image('bohater2', 'assets/bohater2.png');
+        // Poprawne ścieżki do Twoich plików na GitHubie
+        this.load.image('oknoglowne', './assets/oknoglowne.png');
+        this.load.image('bohater1', './assets/bohater1.png');
+        this.load.image('bohater2', './assets/bohater2.png');
     }
     create() {
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
-        this.add.text(this.scale.width / 2, 100, "WYBIERZ SWOJEGO BOHATERA", { fontSize: '40px', fill: '#fff', stroke: '#000', strokeThickness: 6 }).setOrigin(0.5);
+        
+        this.add.text(this.scale.width / 2, 80, "PRZERÓB MNIE PANIE", { fontSize: '48px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+        this.add.text(this.scale.width / 2, 140, "WYBIERZ POSTAĆ", { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
 
-        let p1 = this.add.image(this.scale.width * 0.35, this.scale.height / 2, 'bohater1').setInteractive().setScale(0.5);
-        let p2 = this.add.image(this.scale.width * 0.65, this.scale.height / 2, 'bohater2').setInteractive().setScale(0.5);
+        let p1 = this.add.image(this.scale.width * 0.35, this.scale.height * 0.6, 'bohater1').setInteractive().setScale(0.5);
+        let p2 = this.add.image(this.scale.width * 0.65, this.scale.height * 0.6, 'bohater2').setInteractive().setScale(0.5);
 
         p1.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater1', levelIndex: 0 }));
         p2.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater2', levelIndex: 0 }));
     }
 }
 
-// --- GŁÓWNA SCENA GRY ---
+// --- GRA ---
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
 
@@ -49,57 +51,47 @@ class GameScene extends Phaser.Scene {
     }
 
     preload() {
-        // Tła i Ekrany
-        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
-        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
-        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
-        this.load.image('wTitle', 'assets/wTitle.png');
+        // Tła
+        this.load.image('tlolv1', './assets/tlolv1.jpeg');
+        this.load.image('tlolv2', './assets/tlolv2.jpeg');
+        this.load.image('tlolv3', './assets/tlolv3.jpeg');
+        this.load.image('wTitle', './assets/wTitle.png');
         
-        // Moce i FX
-        this.load.image('hpower2', 'assets/hpower2.jpeg');
-        this.load.image('opower1', 'assets/opower1.jpeg');
+        // Moce[cite: 1]
+        this.load.image('hpower2', './assets/hpower2.jpeg');
+        this.load.image('opower1', './assets/opower1.jpeg');
 
-        // Trolle - Bagienne
-        this.load.image('tb1', 'assets/tb1.png');
-        this.load.image('tb2', 'assets/tb2.png');
-        this.load.image('tb3', 'assets/tb3.png');
+        // Trolle - Bagienne[cite: 1]
+        this.load.image('tb1', './assets/tb1.png');
+        this.load.image('tb2', './assets/tb2.png');
+        this.load.image('tb3', './assets/tb3.png');
         
-        // Trolle - Kamienne
-        this.load.image('tk1', 'assets/tk1.jpeg');
-        this.load.image('tk2', 'assets/tk2.jpeg');
-        this.load.image('tk3', 'assets/tk3.jpeg');
+        // Trolle - Kamienne[cite: 1]
+        this.load.image('tk1', './assets/tk1.jpeg');
+        this.load.image('tk2', './assets/tk2.jpeg');
+        this.load.image('tk3', './assets/tk3.jpeg');
 
-        // Trolle - Mchowe
-        this.load.image('tm1', 'assets/tm1.png');
-        this.load.image('tm2', 'assets/tm2.png');
-        this.load.image('tm3', 'assets/tm3.png');
+        // Trolle - Mchowe[cite: 1]
+        this.load.image('tm1', './assets/tm1.png');
+        this.load.image('tm2', './assets/tm2.png');
+        this.load.image('tm3', './assets/tm3.png');
     }
 
     create() {
         const lvl = LEVELS[this.levelIndex];
-        
-        // Dynamiczne tło[cite: 1]
-        this.background = this.add.tileSprite(this.scale.width / 2, this.scale.height / 2, this.scale.width, this.scale.height, lvl.bg);
-        this.background.setDisplaySize(this.scale.width, this.scale.height);
+        this.add.image(this.scale.width / 2, this.scale.height / 2, lvl.bg).setDisplaySize(this.scale.width, this.scale.height);
 
-        // Gracz
         this.player = this.physics.add.sprite(200, this.scale.height / 2, this.playerKey);
-        this.player.setScale(0.4).setCollideWorldBounds(true);
+        this.player.setScale(0.5).setCollideWorldBounds(true);
         this.player.cooldowns = { flash: 0, impulse: 0 };
 
-        // UI
-        this.add.text(20, 20, `POZIOM: ${lvl.name}`, { fontSize: '24px', fill: '#fff', fontStyle: 'bold' });
-        this.statusText = this.add.text(20, 60, '', { fontSize: '18px', fill: '#fff' });
-
-        // Horda
         this.trolls = this.physics.add.group();
         this.spawnTimer = this.time.addEvent({
-            delay: 1500 - (this.levelIndex * 200),
+            delay: 1500,
             callback: () => this.spawnTroll(lvl.types),
             repeat: lvl.horde - 1
         });
 
-        // Sterowanie
         this.input.on('pointerdown', (p) => {
             if (p.x < this.scale.width / 2) this.useFlash();
             else this.useImpulse();
@@ -112,52 +104,28 @@ class GameScene extends Phaser.Scene {
         if (this.isGameOver) return;
         const type = Phaser.Utils.Array.GetRandom(types);
         const variant = Phaser.Math.Between(1, 3);
-        
-        // Mapowanie typów na klucze plików[cite: 1]
-        let key = '';
-        if (type === 'bagienny') key = `tb${variant}`;
-        else if (type === 'kamienny') key = `tk${variant}`;
-        else if (type === 'mchowy') key = `tm${variant}`;
+        let key = (type === 'bagienny') ? `tb${variant}` : (type === 'kamienny' ? `tk${variant}` : `tm${variant}`);
 
-        const y = Phaser.Math.Between(100, this.scale.height - 100);
-        let troll = this.trolls.create(this.scale.width + 100, y, key);
-        
+        let troll = this.trolls.create(this.scale.width + 100, Phaser.Math.Between(100, this.scale.height - 100), key);
         troll.type = type;
-        troll.setScale(type === 'kamienny' ? 0.5 : 0.35);
-        troll.speed = type === 'mchowy' ? -200 : (type === 'kamienny' ? -60 : -120);
+        troll.setScale(0.4);
+        troll.body.setVelocityX(type === 'kamienny' ? -60 : -130);
     }
 
     useFlash() {
         if (this.player.cooldowns.flash > Date.now()) return;
-        this.player.cooldowns.flash = Date.now() + 4000;
-        
-        // FX: Ogień Power (opower1)[cite: 1]
-        let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.5).setAlpha(0.8);
+        this.player.cooldowns.flash = Date.now() + 3000;
+        let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.2).setAlpha(0.8);
         this.tweens.add({ targets: fx, scale: 2, alpha: 0, duration: 500, onComplete: () => fx.destroy() });
-
-        this.trolls.children.iterate(t => {
-            if(t) {
-                t.body.setVelocity(0);
-                t.setTint(0xff5555);
-                this.time.delayedCall(2000, () => { if(t.active) t.clearTint(); });
-            }
-        });
+        this.trolls.children.iterate(t => { if(t) t.setTint(0xff0000); this.time.delayedCall(1000, () => t && t.clearTint()); });
     }
 
     useImpulse() {
         if (this.player.cooldowns.impulse > Date.now()) return;
-        this.player.cooldowns.impulse = Date.now() + 2500;
-
-        // FX: Siła ręki (hpower2)[cite: 1]
-        let fx = this.add.image(this.player.x + 50, this.player.y, 'hpower2').setAlpha(0.7);
-        this.tweens.add({ targets: fx, x: '+=200', alpha: 0, duration: 400, onComplete: () => fx.destroy() });
-
-        this.trolls.children.iterate(t => {
-            if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 350) {
-                t.x += 200;
-                t.body.setVelocityX(150);
-            }
-        });
+        this.player.cooldowns.impulse = Date.now() + 2000;
+        let fx = this.add.image(this.player.x + 50, this.player.y, 'hpower2').setScale(0.5);
+        this.tweens.add({ targets: fx, x: '+=300', alpha: 0, duration: 400, onComplete: () => fx.destroy() });
+        this.trolls.children.iterate(t => { if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 300) t.x += 150; });
     }
 
     handleGameOver() {
@@ -168,51 +136,29 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (this.isGameOver) return;
-        this.background.tilePositionX += 2; // Przesuwanie tła
-
         this.trolls.children.iterate(t => {
-            if (t && t.active) {
-                if (t.type === 'bagienny') this.physics.moveToObject(t, this.player, Math.abs(t.speed));
-                else if (t.type === 'mchowy') {
-                    t.body.setVelocityX(t.speed);
-                    t.y += Math.sin(this.time.now / 150) * 4;
-                } else {
-                    t.body.setVelocityX(t.speed);
-                }
-
-                if (t.x < -100) this.handleGameOver();
-            }
+            if (t && t.x < -100) this.handleGameOver();
         });
-
         if (this.spawnTimer.getRepeatCount() === 0 && this.trolls.countActive() === 0) {
-            if (this.levelIndex < LEVELS.length - 1) {
-                // Ekran ładowania (wTitle)[cite: 1]
-                this.scene.start("TransitionScene", { levelIndex: this.levelIndex + 1, playerKey: this.playerKey });
-            } else {
-                this.scene.start("WinScene");
-            }
+            if (this.levelIndex < LEVELS.length - 1) this.scene.start("TransitionScene", { levelIndex: this.levelIndex + 1, playerKey: this.playerKey });
+            else this.scene.start("WinScene");
         }
-        this.statusText.setText(`Pozostałe Trole: ${this.trolls.countActive()}`);
     }
 }
 
-// --- SCENA PRZEJŚCIOWA (ŁADOWANIE) ---
+// --- SCENY DODATKOWE ---
 class TransitionScene extends Phaser.Scene {
     constructor() { super("TransitionScene"); }
     create(data) {
         this.add.image(this.scale.width / 2, this.scale.height / 2, 'wTitle').setDisplaySize(this.scale.width, this.scale.height);
-        this.add.text(this.scale.width / 2, this.scale.height * 0.8, "ŁADOWANIE KOLEJNEJ PRZERÓBKI...", { fontSize: '24px', fill: '#fff' }).setOrigin(0.5);
         this.time.delayedCall(2000, () => this.scene.start("GameScene", data));
     }
 }
 
-// --- SCENY KOŃCOWE ---
 class GameOverScene extends Phaser.Scene {
     constructor() { super("GameOverScene"); }
     create(data) {
-        this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000, 0.7).setOrigin(0);
-        this.add.text(this.scale.width/2, this.scale.height/2, "TWOJA TWARZ ZOSTAŁA PRZEROBIONA", { fontSize: '40px', fill: '#f00', fontStyle: 'bold' }).setOrigin(0.5);
-        this.add.text(this.scale.width/2, this.scale.height/2 + 80, "Tapnij, by spróbować ponownie", { fontSize: '20px', fill: '#fff' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2, "PRZERÓBKA NIEUDANA", { fontSize: '40px', fill: '#f00' }).setOrigin(0.5);
         this.input.once('pointerdown', () => this.scene.start("GameScene", data));
     }
 }
@@ -220,8 +166,7 @@ class GameOverScene extends Phaser.Scene {
 class WinScene extends Phaser.Scene {
     constructor() { super("WinScene"); }
     create() {
-        this.add.text(this.scale.width/2, this.scale.height/2, "KLUCZ BIELI URATOWANY!", { fontSize: '48px', fill: '#0f0', fontStyle: 'bold' }).setOrigin(0.5);
-        this.add.text(this.scale.width/2, this.scale.height/2 + 80, "Uratowałeś świat przed trollami.", { fontSize: '20px', fill: '#fff' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2, "KLUCZ BIELI URATOWANY!", { fontSize: '40px', fill: '#0f0' }).setOrigin(0.5);
         this.input.once('pointerdown', () => this.scene.start("MenuScene"));
     }
 }
