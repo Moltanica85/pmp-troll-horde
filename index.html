@@ -6,128 +6,109 @@
     <title>PMP: Troll Horde</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; touch-action: none; }
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
 <body>
 <script>
 
-const CONFIG = {
-    type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
-    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } }
-};
-
-class StartScene extends Phaser.Scene {
-    constructor() { super("StartScene"); }
+// --- SCENA ŁADOWANIA WSZYSTKIEGO ---
+class BootScene extends Phaser.Scene {
+    constructor() { super("BootScene"); }
     preload() {
-        this.load.image('oknoglowne', 'assets/oknoglowne.png');[cite: 1]
+        // Tła
+        this.load.image('oknoglowne', 'assets/oknoglowne.png');
+        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
+        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
+        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
+        
+        // Postacie i Moce
+        this.load.image('bohater1', 'assets/bohater1.png');
+        this.load.image('bohater2', 'assets/bohater2.png');
+        this.load.image('hpower2', 'assets/hpower2.png');
+        this.load.image('opower1', 'assets/opower1.png');
+
+        // Trolle[cite: 1]
+        for(let i=1; i<=3; i++) {
+            this.load.image('tb'+i, 'assets/tb'+i+'.png');
+            this.load.image('tk'+i, 'assets/tk'+i+'.png');
+            this.load.image('tm'+i, 'assets/tm'+i+'.png');
+        }
     }
     create() {
-        this.add.image(this.scale.width/2, this.scale.height/2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
-        let btn = this.add.rectangle(this.scale.width/2, this.scale.height/2 + 100, 200, 60, 0x000000, 0.7).setInteractive().setStrokeStyle(2, 0xffffff);
-        this.add.text(this.scale.width/2, this.scale.height/2 + 100, "START", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
-        btn.on('pointerdown', () => this.scene.start("CharacterSelectScene"));
+        // Po załadowaniu wszystkiego, idź do Menu
+        this.scene.start("StartScene");
     }
 }
 
-class CharacterSelectScene extends Phaser.Scene {
-    constructor() { super("CharacterSelectScene"); }
-    preload() {
-        this.load.image('bohater1', 'assets/bohater1.png');[cite: 1]
-        this.load.image('bohater2', 'assets/bohater2.png');[cite: 1]
+class StartScene extends Phaser.Scene {
+    constructor() { super("StartScene"); }
+    create() {
+        this.add.image(this.scale.width/2, this.scale.height/2, 'oknoglowne').setDisplaySize(this.scale.width, this.scale.height);
+        let btn = this.add.rectangle(this.scale.width/2, this.scale.height/2 + 100, 200, 60, 0x000000, 0.8).setInteractive().setStrokeStyle(2, 0xffffff);
+        this.add.text(this.scale.width/2, this.scale.height/2 + 100, "GRAJ", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
+        btn.on('pointerdown', () => this.scene.start("SelectScene"));
     }
+}
+
+class SelectScene extends Phaser.Scene {
+    constructor() { super("SelectScene"); }
     create() {
         this.add.text(this.scale.width/2, 100, "WYBIERZ POSTAĆ", { fontSize: '32px', fill: '#fff' }).setOrigin(0.5);
         let p1 = this.add.image(this.scale.width * 0.35, this.scale.height/2, 'bohater1').setInteractive().setScale(0.6);
         let p2 = this.add.image(this.scale.width * 0.65, this.scale.height/2, 'bohater2').setInteractive().setScale(0.6);
-        p1.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater1', levelIndex: 0 }));
-        p2.on('pointerdown', () => this.scene.start("GameScene", { playerKey: 'bohater2', levelIndex: 0 }));
+
+        p1.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater1' }));
+        p2.on('pointerdown', () => this.scene.start("GameScene", { hero: 'bohater2' }));
     }
 }
 
 class GameScene extends Phaser.Scene {
     constructor() { super("GameScene"); }
-    init(data) { this.levelData = data; }
-
-    preload() {
-        // TŁA - JPEG
-        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
-        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
-        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
-        
-        // MOCE
-        this.load.image('hpower2', 'assets/hpower2.png');
-        this.load.image('opower1', 'assets/opower1.png');
-
-        // TROLLE - PNG (Poprawione ładowanie)[cite: 1]
-        this.load.image('tb1', 'assets/tb1.png');
-        this.load.image('tb2', 'assets/tb2.png');
-        this.load.image('tb3', 'assets/tb3.png');
-        this.load.image('tk1', 'assets/tk1.png');
-        this.load.image('tk2', 'assets/tk2.png');
-        this.load.image('tk3', 'assets/tk3.png');
-        this.load.image('tm1', 'assets/tm1.png');
-        this.load.image('tm2', 'assets/tm2.png');
-        this.load.image('tm3', 'assets/tm3.png');
-    }
+    init(data) { this.heroKey = data.hero; }
 
     create() {
-        let currentBG = 'tlolv1';
-        if(this.levelData.levelIndex === 1) currentBG = 'tlolv2';
-        if(this.levelData.levelIndex === 2) currentBG = 'tlolv3';
-
-        this.add.image(this.scale.width/2, this.scale.height/2, currentBG).setDisplaySize(this.scale.width, this.scale.height);
-
-        this.player = this.physics.add.sprite(200, this.scale.height/2, this.levelData.playerKey).setScale(0.4).setCollideWorldBounds(true);
+        this.add.image(this.scale.width/2, this.scale.height/2, 'tlolv1').setDisplaySize(this.scale.width, this.scale.height);
+        
+        this.player = this.physics.add.sprite(200, this.scale.height/2, this.heroKey).setScale(0.4).setCollideWorldBounds(true);
         this.trolls = this.physics.add.group();
         this.projectiles = this.physics.add.group();
 
-        this.time.addEvent({ delay: 1500, callback: this.spawnTroll, callbackScope: this, repeat: 20 });
-
+        this.time.addEvent({ delay: 1500, callback: this.spawn, callbackScope: this, repeat: -1 });
+        
         this.keyA = this.input.keyboard.addKey('A');
-        this.keyZ = this.input.keyboard.addKey('Z');
 
         this.physics.add.overlap(this.projectiles, this.trolls, (p, t) => { p.destroy(); t.destroy(); });
-        this.physics.add.overlap(this.player, this.trolls, () => { this.scene.start("StartScene"); });
+        this.physics.add.overlap(this.player, this.trolls, () => this.scene.start("StartScene"));
     }
 
     update() {
-        if (this.input.activePointer.isDown) {
-            this.physics.moveToObject(this.player, this.input.activePointer, 300);
-        } else {
-            this.player.setVelocity(0);
-        }
+        if (this.input.activePointer.isDown) this.physics.moveToObject(this.player, this.input.activePointer, 300);
+        else this.player.setVelocity(0);
 
         if (Phaser.Input.Keyboard.JustDown(this.keyA)) {
             let p = this.projectiles.create(this.player.x + 30, this.player.y, 'hpower2').setScale(0.15);
             p.body.setVelocityX(700);
         }
-        
-        if (Phaser.Input.Keyboard.JustDown(this.keyZ)) {
-            let fx = this.add.image(this.player.x, this.player.y, 'opower1').setScale(0.1);
-            this.tweens.add({ targets: fx, scale: 3, alpha: 0, duration: 400, onComplete: () => fx.destroy() });
-            this.trolls.children.iterate(t => { 
-                if(t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 200) t.destroy(); 
-            });
-        }
     }
 
-    spawnTroll() {
-        const prefixes = ['tb', 'tk', 'tm'];
-        let pref = prefixes[this.levelData.levelIndex] || 'tb';
-        let variant = Phaser.Math.Between(1, 3);
-        let troll = this.trolls.create(this.scale.width + 50, Phaser.Math.Between(50, this.scale.height - 50), pref + variant);
-        if(troll) {
-            troll.setFlipX(true).setScale(0.35);
-            troll.body.setVelocityX(-150);
-        }
+    spawn() {
+        let t = this.trolls.create(this.scale.width + 50, Phaser.Math.Between(50, this.scale.height-50), 'tb1');
+        if(t) { t.setFlipX(true).setScale(0.35); t.body.setVelocityX(-150); }
     }
 }
 
-const game = new Phaser.Game(Object.assign(CONFIG, { scene: [StartScene, CharacterSelectScene, GameScene] }));
+// --- START SILNIKA ---
+const config = {
+    type: Phaser.AUTO,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    physics: { default: 'arcade', arcade: { debug: false } },
+    scene: [BootScene, StartScene, SelectScene, GameScene]
+};
+new Phaser.Game(config);
+
 </script>
 </body>
 </html>
