@@ -1,1 +1,214 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Przerób Mnie Panie: Troll Horde</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <style>
+    body { margin: 0; background: #111; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+  <script>
+    // ================================
+    // PRZERÓB MNIE PANIE: TROLL HORDE
+    // WERSJA JEDNOPLIKOWA (index.html)
+    // ================================
+
+    const LEVELS = [
+      { name: "Ścieżka Białego Wejścia", horde: 15, types: ["bagienny"], color: "#1a2e1a" },
+      { name: "Kamienna Przełęcz",       horde: 25, types: ["bagienny", "kamienny"], color: "#222222" },
+      { name: "Mchowy Amfiteatr",        horde: 40, types: ["bagienny", "mchowy"], color: "#0d2b0d" }
+    ];
+
+    class GameScene extends Phaser.Scene {
+      constructor() { super("GameScene"); }
+
+      init(data) {
+        this.levelIndex = data.levelIndex || 0;
+        this.isGameOver = false;
+      }
+
+      preload() {
+        // PROSTE PLACEHOLDERY — później podmienimy na Twoje grafiki
+        const createRect = (key, color, w, h) => {
+          let g = this.make.graphics();
+          g.fillStyle(color, 1);
+          g.fillRect(0, 0, w, h);
+          g.generateTexture(key, w, h);
+        };
+
+        createRect('player', 0xffffff, 40, 80);      // Bohater
+        createRect('troll_bagienny', 0x3a7f3a, 30, 30);
+        createRect('troll_kamienny', 0x666666, 50, 50);
+        createRect('troll_mchowy', 0xaaffaa, 25, 25);
+      }
+
+      create() {
+        const lvl = LEVELS[this.levelIndex];
+        this.cameras.main.setBackgroundColor(lvl.color);
+
+        this.add.text(20, 20, `LEVEL: ${lvl.name}`, { fontSize: '20px', fontStyle: 'bold', fill: '#ffffff' });
+        this.statusText = this.add.text(20, 50, '', { fontSize: '16px', fill: '#ffffff' });
+
+        // Gracz
+        this.player = this.physics.add.sprite(150, this.scale.height / 2, 'player');
+        this.player.setCollideWorldBounds(true);
+        this.player.cooldowns = { flash: 0, impulse: 0 };
+
+        // Horda
+        this.trolls = this.physics.add.group();
+        this.spawned = 0;
+
+        this.spawnTimer = this.time.addEvent({
+          delay: 1500 - (this.levelIndex * 200),
+          callback: () => this.spawnTroll(lvl.types),
+          repeat: lvl.horde - 1
+        });
+
+        // Sterowanie dotyk / mysz
+        this.input.on('pointerdown', (p) => {
+          if (p.x < this.scale.width / 2) this.useFlash();
+          else this.useImpulse();
+        });
+
+        // Kolizja
+        this.physics.add.overlap(this.player, this.trolls, this.handleGameOver, null, this);
+
+        // Klawiatura (PC)
+        this.cursors = this.input.keyboard.createCursorKeys();
+      }
+
+      spawnTroll(types) {
+        if (this.isGameOver) return;
+        const type = Phaser.Utils.Array.GetRandom(types);
+        const x = this.scale.width + 50;
+        const y = Phaser.Math.Between(100, this.scale.height - 100);
+
+        let key = 'troll_bagienny';
+        if (type === 'kamienny') key = 'troll_kamienny';
+        if (type === 'mchowy')   key = 'troll_mchowy';
+
+        let troll = this.trolls.create(x, y, key);
+        troll.type = type;
+        troll.hp = type === 'kamienny' ? 3 : 1;
+        troll.speed = type === 'mchowy' ? -180 : (type === 'kamienny' ? -50 : -100);
+      }
+
+      useFlash() {
+        if (this.player.cooldowns.flash > Date.now()) return;
+        this.player.cooldowns.flash = Date.now() + 3000;
+
+        this.cameras.main.flash(200, 255, 255, 255);
+        this.trolls.children.iterate(t => {
+          if (t) {
+            t.body.setVelocity(0);
+            t.setTint(0xffff00);
+            this.time.delayedCall(2000, () => { if (t.active) t.clearTint(); });
+          }
+        });
+      }
+
+      useImpulse() {
+        if (this.player.cooldowns.impulse > Date.now()) return;
+        this.player.cooldowns.impulse = Date.now() + 2000;
+
+        this.trolls.children.iterate(t => {
+          if (t && Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) < 300) {
+            t.x += 150;
+            t.body.setVelocityX(100);
+          }
+        });
+      }
+
+      handleGameOver() {
+        if (this.isGameOver) return;
+        this.isGameOver = true;
+        this.physics.pause();
+        this.scene.start("GameOverScene", { levelIndex: this.levelIndex });
+      }
+
+      update() {
+        if (this.isGameOver) return;
+
+        // Ruch gracza (PC)
+        if (this.cursors) {
+          this.player.body.setVelocity(0);
+          if (this.cursors.left.isDown)  this.player.body.setVelocityX(-200);
+          if (this.cursors.right.isDown) this.player.body.setVelocityX(200);
+          if (this.cursors.up.isDown)    this.player.body.setVelocityY(-200);
+          if (this.cursors.down.isDown)  this.player.body.setVelocityY(200);
+        }
+
+        // Ruch trolli
+        this.trolls.children.iterate(t => {
+          if (!t || !t.active) return;
+
+          if (t.type === 'kamienny') {
+            t.body.setVelocityX(t.speed);
+          } else if (t.type === 'bagienny') {
+            this.physics.moveToObject(t, this.player, Math.abs(t.speed));
+          } else if (t.type === 'mchowy') {
+            t.body.setVelocityX(t.speed);
+            t.y += Math.sin(this.time.now / 200) * 5;
+          }
+
+          if (t.x < -50) this.handleGameOver();
+        });
+
+        // Wygrana
+        if (this.spawnTimer.getRepeatCount() === 0 && this.trolls.countActive() === 0) {
+          if (this.levelIndex < LEVELS.length - 1) {
+            this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
+          } else {
+            this.scene.start("WinScene");
+          }
+        }
+
+        this.statusText.setText(`Pozostałe Trole: ${this.trolls.countActive()}`);
+      }
+    }
+
+    class GameOverScene extends Phaser.Scene {
+      constructor() { super("GameOverScene"); }
+      create(data) {
+        this.add.text(this.scale.width/2, this.scale.height/2 - 40, "TWOJA TWARZ ZOSTAŁA PRZEROBIONA", { fontSize: '24px', fill: '#ff5555', align: 'center' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2 + 10, "Tapnij, aby spróbować ponownie", { fontSize: '16px', fill: '#ffffff' }).setOrigin(0.5);
+
+        this.input.once('pointerdown', () => {
+          this.scene.start("GameScene", { levelIndex: data.levelIndex || 0 });
+        });
+      }
+    }
+
+    class WinScene extends Phaser.Scene {
+      constructor() { super("WinScene"); }
+      create() {
+        this.add.text(this.scale.width/2, this.scale.height/2 - 40, "KLUCZ BIELI URATOWANY", { fontSize: '24px', fill: '#55ff55', align: 'center' }).setOrigin(0.5);
+        this.add.text(this.scale.width/2, this.scale.height/2 + 10, "Tapnij, aby zagrać od nowa", { fontSize: '16px', fill: '#ffffff' }).setOrigin(0.5);
+
+        this.input.once('pointerdown', () => {
+          this.scene.start("GameScene", { levelIndex: 0 });
+        });
+      }
+    }
+
+    const CONFIG = {
+      type: Phaser.AUTO,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: "#111111",
+      physics: {
+        default: "arcade",
+        arcade: { gravity: { y: 0 }, debug: false }
+      },
+      scene: [GameScene, GameOverScene, WinScene]
+    };
+
+    new Phaser.Game(CONFIG);
+  </script>
+</body>
+</html>
 
