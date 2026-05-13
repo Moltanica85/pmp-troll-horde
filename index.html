@@ -1,204 +1,59 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Stabilna Wersja</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
-    <style>
-        body { margin: 0; background: #000; overflow: hidden; }
-        canvas { display: block; margin: 0 auto; }
-    </style>
-</head>
-<body>
-<script>
+// Konfiguracja klatek - ZMIERZ SWÓJ ARKUSZ I WPISZ TUTAJ WARTOŚCI
+const FRAME_WIDTH = 128;  // Szerokość jednej klatki (jednego ludzika)
+const FRAME_HEIGHT = 128; // Wysokość jednej klatki (jednego ludzika)
 
-let globalVolume = 0.3;
-
-// 1. Konfiguracja gry
-const CONFIG = {
-    type: Phaser.AUTO,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1280,
-        height: 720
-    },
-    physics: {
-        default: 'arcade',
-        arcade: { gravity: { y: 0 }, debug: false }
+class SelectionScene extends Phaser.Scene {
+    constructor() {
+        super("SelectionScene");
     }
-};
-
-// 2. Scena Ładowania (Boot)
-class BootScene extends Phaser.Scene {
-    constructor() { super("BootScene"); }
 
     preload() {
-        // Tła i UI
-        this.load.image('oknoglowne', 'assets/oknoglowne.png');
-        ['tlolv1', 'tlolv2', 'tlolv3'].forEach(bg => this.load.image(bg, `assets/${bg}.jpeg`));
-        
-        // Moce (Upewnij się czy to .png czy .jpeg na serwerze!)
-        this.load.image('hpower2', 'assets/hpower2.png');
-        this.load.image('opower1', 'assets/opower1.png');
-
-        // Postacie - Twoje wymiary 512x768 są poprawne dla arkuszy 2048x3072
-        const f = { frameWidth: 512, frameHeight: 768 };
-        this.load.spritesheet('p_idle',  'assets/bohater1panel1.png', f);
-        this.load.spritesheet('p_blue',  'assets/bohater1panel2.png', f);
-        this.load.spritesheet('p_green', 'assets/bohater1panel3.png', f);
-        this.load.spritesheet('p_death', 'assets/bohater1panel4.png', f);
-        this.load.spritesheet('p_run',   'assets/bohater1panel5.png', f);
-
-        // Przeciwnicy
-        for (let i = 1; i <= 3; i++) {
-            this.load.image('tb' + i, `assets/tb${i}.png`);
-        }
-
-        // Audio
-        this.load.audio('track1', 'assets/muzyka1.mp3');
-        this.load.audio('track2', 'assets/muzyka2.mp3');
+        // Ładowanie arkuszy z parametrami cięcia (frameConfig)
+        // Zakładam, że pliki nazywają się rysiek.png i slawek.png
+        this.load.spritesheet("rysiek_sheet", "assets/rysiek.png", {
+            frameWidth: FRAME_WIDTH,
+            frameHeight: FRAME_HEIGHT
+        });
+        this.load.spritesheet("slawek_sheet", "assets/slawek.png", {
+            frameWidth: FRAME_WIDTH,
+            frameHeight: FRAME_HEIGHT
+        });
     }
 
     create() {
-        // Definicje animacji
-        this.anims.create({ key: 'idle', frames: this.anims.generateFrameNumbers('p_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
-        this.anims.create({ key: 'run',  frames: this.anims.generateFrameNumbers('p_run', { start: 0, end: 3 }), frameRate: 10, repeat: -1 });
-        this.anims.create({ key: 'atk_blue', frames: this.anims.generateFrameNumbers('p_blue', { start: 8, end: 11 }), frameRate: 12 });
-        this.anims.create({ key: 'atk_green', frames: this.anims.generateFrameNumbers('p_green', { start: 8, end: 11 }), frameRate: 12 });
-        this.anims.create({ key: 'die', frames: this.anims.generateFrameNumbers('p_death', { start: 8, end: 11 }), frameRate: 8 });
+        this.add.text(this.scale.width / 2, 100, "WYBIERZ BOHATERA", { fontSize: "32px", fill: "#fff" }).setOrigin(0.5);
 
-        this.scene.start("StartScene");
-    }
-}
-
-// 3. Menu Główne z Suwakiem
-class StartScene extends Phaser.Scene {
-    constructor() { super("StartScene"); }
-
-    create() {
-        this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
-
-        // Przycisk Start
-        let btn = this.add.rectangle(640, 400, 300, 80, 0x000000, 0.7).setInteractive().setStrokeStyle(4, 0xffffff);
-        this.add.text(640, 400, "START", { fontSize: '42px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-
-        btn.on('pointerdown', () => {
-            if (!this.sound.get('track1')) this.sound.play('track1', { loop: true, volume: globalVolume });
-            this.scene.start("SelectScene");
+        // Tworzenie animacji "idle" (oddech/stanie w miejscu)
+        this.anims.create({
+            key: 'rysiek_idle',
+            frames: this.anims.generateFrameNumbers('rysiek_sheet', { start: 0, end: 3 }), // pierwsze 4 klatki
+            frameRate: 8,
+            repeat: -1
         });
 
-        // Suwak Głośności
-        this.add.text(640, 540, "GŁOŚNOŚĆ", { fontSize: '20px', fill: '#fff' }).setOrigin(0.5);
-        this.add.rectangle(640, 580, 200, 10, 0x333333); // Tło paska
-        let handle = this.add.circle(540 + (globalVolume * 200), 580, 15, 0xffffff).setInteractive();
-        
-        this.input.setDraggable(handle);
-        this.input.on('drag', (pointer, gameObject, dragX) => {
-            dragX = Phaser.Math.Clamp(dragX, 540, 740);
-            gameObject.x = dragX;
-            globalVolume = (dragX - 540) / 200;
-            this.sound.setVolume(globalVolume);
+        this.anims.create({
+            key: 'slawek_idle',
+            frames: this.anims.generateFrameNumbers('slawek_sheet', { start: 0, end: 3 }),
+            frameRate: 8,
+            repeat: -1
+        });
+
+        // Interaktywne postacie
+        let rysiek = this.add.sprite(this.scale.width * 0.35, this.scale.height / 2, "rysiek_sheet").setInteractive();
+        rysiek.play('rysiek_idle');
+        this.add.text(this.scale.width * 0.35, this.scale.height / 2 + 100, "RYSIEK", { fontSize: "24px" }).setOrigin(0.5);
+
+        let slawek = this.add.sprite(this.scale.width * 0.65, this.scale.height / 2, "slawek_sheet").setInteractive();
+        slawek.play('slawek_idle');
+        this.add.text(this.scale.width * 0.65, this.scale.height / 2 + 100, "SŁAWEK", { fontSize: "24px" }).setOrigin(0.5);
+
+        // Logika kliknięcia - przejście do gry
+        rysiek.on('pointerdown', () => {
+            this.scene.start("GameScene", { selectedHero: "rysiek_sheet" });
+        });
+
+        slawek.on('pointerdown', () => {
+            this.scene.start("GameScene", { selectedHero: "slawek_sheet" });
         });
     }
 }
-
-// 4. Wybór Postaci
-class SelectScene extends Phaser.Scene {
-    constructor() { super("SelectScene"); }
-
-    create() {
-        this.add.text(640, 100, "WYBIERZ BOHATERA", { fontSize: '40px', fill: '#fff' }).setOrigin(0.5);
-
-        // Rysiek
-        let r = this.add.sprite(440, 400, 'p_idle', 0).setScale(0.4).setInteractive();
-        this.add.text(440, 600, "RYSIEK", { fontSize: '30px', fill: '#fff' }).setOrigin(0.5);
-        r.on('pointerdown', () => this.scene.start("GameScene", { hero: 'rysiek', tint: 0xffffff, special: 'atk_blue' }));
-
-        // Sławek
-        let s = this.add.sprite(840, 400, 'p_idle', 0).setScale(0.4).setInteractive().setTint(0x99ff99);
-        this.add.text(840, 600, "SŁAWEK", { fontSize: '30px', fill: '#fff' }).setOrigin(0.5);
-        s.on('pointerdown', () => this.scene.start("GameScene", { hero: 'slawek', tint: 0x99ff99, special: 'atk_green' }));
-    }
-}
-
-// 5. Rozgrywka
-class GameScene extends Phaser.Scene {
-    constructor() { super("GameScene"); }
-
-    init(data) {
-        this.heroData = data;
-        this.score = 0;
-        this.isDead = false;
-    }
-
-    create() {
-        this.add.image(640, 360, 'tlolv1').setDisplaySize(1280, 720);
-
-        this.player = this.physics.add.sprite(200, 400, 'p_idle', 0).setScale(0.35);
-        this.player.setTint(this.heroData.tint).setCollideWorldBounds(true);
-        this.player.body.setSize(200, 400).setOffset(150, 200);
-
-        this.trolls = this.physics.add.group();
-        this.bullets = this.physics.add.group();
-
-        this.keys = this.input.keyboard.addKeys('W,A,S,D,K');
-
-        this.time.addEvent({ delay: 1500, callback: this.spawnTroll, callbackScope: this, loop: true });
-
-        this.ui = this.add.text(20, 20, '', { fontSize: '28px', fill: '#fff', stroke: '#000', strokeThickness: 4 });
-
-        this.physics.add.overlap(this.bullets, this.trolls, (b, t) => {
-            b.destroy();
-            t.destroy();
-            this.score++;
-        });
-
-        this.physics.add.overlap(this.player, this.trolls, () => this.die());
-    }
-
-    spawnTroll() {
-        if (this.isDead) return;
-        let t = this.trolls.create(1350, Phaser.Math.Between(200, 600), 'tb1').setScale(0.3).setFlipX(true);
-        t.setVelocityX(-200 - (this.score * 10));
-    }
-
-    update() {
-        if (this.isDead) return;
-
-        this.ui.setText(`BOHATER: ${this.heroData.hero.toUpperCase()} | WYNIK: ${this.score}`);
-
-        let vx = 0, vy = 0;
-        if (this.keys.A.isDown) vx = -450;
-        if (this.keys.D.isDown) vx = 450;
-        if (this.keys.W.isDown) vy = -450;
-        if (this.keys.S.isDown) vy = 450;
-        this.player.setVelocity(vx, vy);
-
-        if (vx !== 0 || vy !== 0) this.player.play('run', true);
-        else this.player.play('idle', true);
-
-        if (Phaser.Input.Keyboard.JustDown(this.keys.K)) this.shoot();
-    }
-
-    shoot() {
-        let b = this.bullets.create(this.player.x + 60, this.player.y, 'hpower2').setScale(0.2);
-        b.setVelocityX(900);
-        this.player.play(this.heroData.special, true);
-    }
-
-    die() {
-        if (this.isDead) return;
-        this.isDead = true;
-        this.player.setVelocity(0).setTint(0xff0000).play('die');
-        this.time.delayedCall(1500, () => this.scene.start("StartScene"));
-    }
-}
-
-// Start gry
-CONFIG.scene = [BootScene, StartScene, SelectScene, GameScene];
-const game = new Phaser.Game(CONFIG);
-
-</script>
-</body>
-</html>
