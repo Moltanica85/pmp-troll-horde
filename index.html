@@ -2,11 +2,11 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Wersja Mobilna 100%</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>PMP: Horda Troli - Mobilny Fix Ostateczny</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; padding: 0; touch-action: none; }
+        body { margin: 0; background: #000; overflow: hidden; padding: 0; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
@@ -17,7 +17,6 @@
 let globalVolume = 0.3;
 let selectedHeroStyle = 'normal'; 
 
-// Definicje poziomów na podstawie plików z Twojego GitHuba
 const LEVELS = [
     { name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, types: ["tb1"], bg: "tlolv1" },
     { name: "Level 2 — Kamienna Przełęcz", horde: 35, types: ["tb1", "tb2"], bg: "tlolv2" },
@@ -29,11 +28,316 @@ class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
 
     preload() {
-        // Tła poziomów
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tlolv1', 'assets/tlolv1.jpeg');
         this.load.image('tlolv2', 'assets/tlolv2.jpeg');
         this.load.image('tlolv3', 'assets/tlolv3.jpeg');
+        
+        this.load.image('hpower2', 'assets/hpower2.png');
+        this.load.image('opower1', 'assets/opower1.png');
+        this.load.image('hero_avatar', 'assets/bohater1.png');
+
+        // Arkusz animacji ruchu (ruch.png)
+        this.load.spritesheet('hero_sheet', 'assets/ruch.png', { frameWidth: 200, frameHeight: 200 });
+
+        // Przeciwnicy
+        this.load.image('tb1', 'assets/tb1.png');
+        this.load.image('tb2', 'assets/tb2.png');
+        this.load.image('tb3', 'assets/tb3.png');
+
+        // Audio
+        this.load.audio('track1', 'assets/muzyka1.mp3');
+        this.load.audio('track2', 'assets/muzyka2.mp3');
+    }
+
+    create() {
+        this.anims.create({ 
+            key: 'run',  
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 14 }), 
+            frameRate: 15, 
+            repeat: -1 
+        });
+        
+        this.anims.create({ 
+            key: 'idle', 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 15, end: 19 }), 
+            frameRate: 6, 
+            repeat: -1 
+        });
+
+        this.anims.create({ 
+            key: 'atk', 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 20, end: 24 }), 
+            frameRate: 12 
+        });
+
+        this.scene.start("StartScene");
+    }
+}
+
+// 2. Menu Główne (StartScene)
+class StartScene extends Phaser.Scene {
+    constructor() { super("StartScene"); }
+
+    create() {
+        this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
+
+        let btnArea = this.add.rectangle(640, 420, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
+        this.add.text(640, 420, "START", { fontSize: '42px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+
+        btnArea.on('pointerdown', () => {
+            try {
+                if (!this.sound.get('track1')) {
+                    this.sound.play('track1', { loop: true, volume: globalVolume });
+                }
+            } catch (e) {}
+            this.scene.start("SelectScene");
+        });
+    }
+}
+
+// 3. Ekran Wyboru Postaci (SelectScene) - NAPRAWIONY I ODZABLOKOWANY
+class SelectScene extends Phaser.Scene {
+    constructor() { super("SelectScene"); }
+
+    create() {
+        this.add.rectangle(640, 360, 1280, 720, 0x0a0a0a);
+        this.add.text(640, 100, "WYBIERZ BOHATERA", { fontSize: '46px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+
+        // KARTA: RYSIEK
+        let rBg = this.add.rectangle(440, 380, 320, 420, 0x1c1c1c).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0xffffff);
+        let rSprite = this.add.image(440, 340, 'hero_avatar').setDisplaySize(220, 260);
+        this.add.text(440, 520, "RYSIEK", { fontSize: '32px', fill: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+
+        rBg.on('pointerdown', () => {
+            selectedHeroStyle = 'normal';
+            this.scene.start("GameScene"); // Uruchomienie bez przekazywania zbędnych obiektów w locie
+        });
+
+        // KARTA: SŁAWEK
+        let sBg = this.add.rectangle(840, 380, 320, 420, 0x1c1c1c).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0x7bd97b);
+        let sSprite = this.add.image(840, 340, 'hero_avatar').setDisplaySize(220, 260);
+        sSprite.setTint(0x7bd97b);
+        this.add.text(840, 520, "SŁAWEK", { fontSize: '32px', fill: '#7bd97b', fontStyle: 'bold' }).setOrigin(0.5);
+
+        sBg.on('pointerdown', () => {
+            selectedHeroStyle = 'glow';
+            this.scene.start("GameScene");
+        });
+    }
+}
+
+// 4. Scena Rozgrywki (GameScene)
+class GameScene extends Phaser.Scene {
+    constructor() { 
+        super("GameScene"); 
+    }
+
+    init() {
+        // Resetowanie parametrów sceny przy każdym uruchomieniu bezpośrednio z poziomów globalnych
+        this.levelIndex = 0;
+        this.levelData = LEVELS[this.levelIndex];
+    }
+
+    create() {
+        if (this.sound.get('track1')) this.sound.stop('track1');
+        try {
+            if (!this.sound.get('track2')) this.sound.play('track2', { loop: true, volume: globalVolume });
+        } catch (e) {}
+
+        this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
+
+        this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
+        this.player.setCollideWorldBounds(true);
+        this.player.setScale(0.9);
+        this.player.body.setSize(90, 150);
+
+        if (selectedHeroStyle === 'glow') {
+            this.player.setTint(0x7bd97b);
+        }
+
+        this.player.play('idle');
+
+        this.trolls = this.physics.add.group();
+        this.powers = this.physics.add.group();
+
+        this.trollsLeft = this.levelData.horde;
+        this.trollsSpawned = 0;
+        
+        this.uiText = this.add.text(30, 30, `${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`, { 
+            fontSize: '26px', 
+            fill: '#fff',
+            stroke: '#000',
+            strokeThickness: 5
+        });
+
+        this.spawnTimer = this.time.addEvent({ 
+            delay: 1400, 
+            callback: this.spawnTroll, 
+            callbackScope: this, 
+            loop: true 
+        });
+
+        this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
+        this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
+
+        this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
+        this.cursors = this.input.keyboard.createCursorKeys();
+    }
+
+    spawnTroll() {
+        if (this.trollsSpawned >= this.levelData.horde) return;
+        
+        let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
+        let spawnY = Phaser.Math.Between(220, 640);
+        let troll = this.trolls.create(1350, spawnY, type);
+        
+        if (troll) {
+            troll.setDisplaySize(90, 90);
+            troll.body.setCircle(troll.width / 2.5);
+            troll.type = type;
+
+            if (type === 'tb1') troll.setVelocityX(-170); 
+            if (type === 'tb2') troll.setVelocityX(-100); 
+            if (type === 'tb3') troll.setVelocityX(-230); 
+
+            this.trollsSpawned++;
+        }
+    }
+
+    firePower(targetX, targetY) {
+        if (!this.player || !this.player.active) return;
+        
+        this.player.play('atk');
+        this.player.chain('idle');
+
+        let currentPowerImg = selectedHeroStyle === 'normal' ? 'hpower2' : 'opower1';
+        let projectile = this.powers.create(this.player.x + 40, this.player.y, currentPowerImg);
+        
+        if (projectile) {
+            projectile.setDisplaySize(60, 60);
+            this.physics.moveTo(projectile, targetX, targetY, 550);
+        }
+    }
+
+    powerHit(projectile, troll) {
+        projectile.destroy();
+        
+        this.tweens.add({
+            targets: troll,
+            x: troll.x + 120,
+            duration: 150,
+            onComplete: () => {
+                troll.destroy();
+                this.trollsLeft--;
+                this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+                
+                if (this.trollsLeft <= 0) {
+                    this.checkVictory();
+                }
+            }
+        });
+    }
+
+    playerHit() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        this.scene.start("GameOverScene");
+    }
+
+    checkVictory() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        this.scene.start("WinScene");
+    }
+
+    update() {
+        if (!this.player || !this.player.body) return;
+
+        this.player.setVelocity(0);
+
+        if (this.cursors.left.isDown) { 
+            this.player.setVelocityX(-320); 
+            this.player.setFlipX(true); 
+        } else if (this.cursors.right.isDown) { 
+            this.player.setVelocityX(320); 
+            this.player.setFlipX(false); 
+        }
+        
+        if (this.cursors.up.isDown) {
+            this.player.setVelocityY(-320);
+        } else if (this.cursors.down.isDown) {
+            this.player.setVelocityY(320);
+        }
+
+        let currentAnim = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
+        if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
+            if (currentAnim !== 'run' && currentAnim !== 'atk') this.player.play('run');
+        } else {
+            if (currentAnim !== 'idle' && currentAnim !== 'atk') this.player.play('idle');
+        }
+
+        this.trolls.children.iterate(troll => {
+            if (troll && troll.active) {
+                if (troll.type === 'tb3') {
+                    troll.y += Math.sin(this.time.now / 80) * 4;
+                }
+                if (troll.x < -60) {
+                    this.playerHit();
+                }
+            }
+        });
+    }
+}
+
+// 5. Sceny Końcowe
+class GameOverScene extends Phaser.Scene { 
+    constructor() { super("GameOverScene"); } 
+    create() {
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
+        this.add.text(640, 300, "PRZERÓBKA NIEUDANA", { fontSize: '50px', fill: '#ff5555', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        let btn = this.add.rectangle(640, 440, 280, 60, 0xffffff).setInteractive({ useHandCursor: true });
+        this.add.text(640, 440, "PONÓW", { fontSize: '24px', fill: '#000', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        btn.on('pointerdown', () => this.scene.start("GameScene"));
+    }
+}
+
+class WinScene extends Phaser.Scene { 
+    constructor() { super("WinScene"); } 
+    create() {
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
+        this.add.text(640, 300, "ZWYCIĘSTWO!", { fontSize: '60px', fill: '#55ff55', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        let btn = this.add.rectangle(640, 440, 280, 60, 0xffffff).setInteractive({ useHandCursor: true });
+        this.add.text(640, 440, "POWRÓT", { fontSize: '24px', fill: '#000', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        btn.on('pointerdown', () => this.scene.start("StartScene"));
+    }
+}
+
+// 6. Konfiguracja główna (W pełni zoptymalizowana pod urządzenia mobilne i dotyk)
+const config = {
+    type: Phaser.AUTO,
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: 1280,
+        height: 720
+    },
+    input: {
+        activePointers: 4 // Pełny multitouch dla jednoczesnej obsługi wielu palców
+    },
+    physics: {
+        default: 'arcade',
+        arcade: { gravity: { y: 0 }, debug: false }
+    },
+    scene: [BootScene, StartScene, SelectScene, GameScene, GameOverScene, WinScene]
+};
+const game = new Phaser.Game(config);
+
+</script>
+</body>
+</html>
         
         // Ataki / Moce
         this.load.image('hpower2', 'assets/hpower2.png');
