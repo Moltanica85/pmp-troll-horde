@@ -18,19 +18,19 @@ let globalVolume = 0.3;
 let music1 = null;
 let music2 = null;
 
-// Definicje 3 poziomów gry
+// Definicje 3 poziomów z unikalnymi parametrami
 const LEVELS = [
     { index: 1, name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, bg: "tlolv1" },
     { index: 2, name: "Level 2 — Kamienna Przełęcz", horde: 35, bg: "tlolv2" },
     { index: 3, name: "Level 3 — Mchowy Amfiteatr", horde: 50, bg: "tlolv3" }
 ];
 
-// 1. Scena Ładowania i Diagnostyki (BootScene)
+// 1. Scena Ładowania (BootScene)
 class BootScene extends Phaser.Scene {
     constructor() { super('BootScene'); }
 
     preload() {
-        // Tła dla wszystkich poziomów
+        // Tła dla poziomów
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tlolv1', 'assets/tlolv1.jpeg');
         this.load.image('tlolv2', 'assets/tlolv2.jpeg');
@@ -40,14 +40,14 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // 4) Zabezpieczenie przed duplikatami - czyszczenie tekstury przed załadowaniem
+        // Zabezpieczenie przed duplikatami w pamięci podręcznej
         if (this.textures.exists('hero_sheet')) this.textures.remove('hero_sheet');
         if (this.textures.exists('troll')) this.textures.remove('troll');
 
-        // Ładowanie spritesheetu bohatera zgodnie ze ścisłą specyfikacją 600x600 px (120x120 klatka)
+        // ✔️ PRAWDZIWE WARTOŚCI: Obraz 600x600 px / siatka 5x5 = klatka 120x120 px
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 120, frameHeight: 120, margin: 0, spacing: 0 });
         
-        // 1) Próba załadowania troll.png oraz przygotowanie awaryjnego kształtu na wypadek 404
+        // Spritesheet trolla zgodnie z wytycznymi
         this.load.spritesheet('troll', 'assets/troll.png', { frameWidth: 64, frameHeight: 64, margin: 0, spacing: 0 });
 
         // Pliki audio
@@ -56,38 +56,36 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // 2) Pobranie rzeczywistej liczby klatek z tekstury
-        const heroTexture = this.textures.get('hero_sheet');
-        const frameCount = heroTexture ? heroTexture.frameTotal : 0;
-        console.log('hero_sheet frames:', frameCount); // Debug diagnostyczny w konsoli
+        // Logowanie liczby klatek bohatera w konsoli
+        const frameCount = this.textures.get('hero_sheet').frameTotal;
+        console.log('hero_sheet frames:', frameCount); // oczekiwane: 25
 
-        // Dynamiczne dopasowanie zakresu końcowego, eliminujące crashe pętli logicznej przy frameCount === 26
-        if (frameCount > 0) {
-            const endFrame = frameCount - 1;
+        // Tworzenie animacji biegu na pełne 25 klatek (0 do 24)
+        if (frameCount >= 25) {
             this.anims.create({
                 key: 'hero-run',
-                frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: endFrame }),
+                frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 24 }),
                 frameRate: 24,
                 repeat: -1
             });
         } else {
-            console.error('hero_sheet nie załadowany poprawnie');
-        }
-
-        // 1) Bezpieczna weryfikacja tekstury trolla przed utworzeniem animacji run
-        if (this.textures.exists('troll')) {
-            const trollTexture = this.textures.get('troll');
-            const trollFrames = trollTexture ? trollTexture.frameTotal : 0;
-            
+            console.error('Za mało klatek w hero_sheet. Sprawdź plik PNG.');
             this.anims.create({
-                key: 'troll-run',
-                frames: this.anims.generateFrameNumbers('troll', { start: 0, end: Math.min(24, trollFrames - 1) }),
-                frameRate: 16,
+                key: 'hero-run',
+                frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: frameCount - 1 }),
+                frameRate: 14,
                 repeat: -1
             });
-        } else {
-            console.warn('Texture "troll" not found — skipping anim creation to prevent crash');
         }
+
+        // Animacja biegu trolla
+        const trollFrames = this.textures.get('troll') ? this.textures.get('troll').frameTotal : 0;
+        this.anims.create({
+            key: 'troll-run',
+            frames: this.anims.generateFrameNumbers('troll', { start: 0, end: Math.min(24, trollFrames - 1) }),
+            frameRate: 16,
+            repeat: -1
+        });
 
         this.scene.start("StartScene");
     }
@@ -148,24 +146,22 @@ class GameScene extends Phaser.Scene {
 
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // 4) Utworzenie pojedynczego sprite bohatera z indeksem klatki 0 (brak duplikatów tile-duplication)
+        // ✔️ UTWORZENIE POJEDYNCZEGO BOHATERA
         this.hero = this.physics.add.sprite(100, 420, 'hero_sheet', 0);
         this.hero.setOrigin(0.5, 1);
         this.hero.setScale(1);
         this.hero.setCollideWorldBounds(true);
         
-        // Precyzyjny hitbox bohatera wycentrowany wewnątrz klatki 120x120
+        // ✔️ PRECYZYJNY HITBOX BOHATERA
         this.hero.setSize(40, 90);
         this.hero.setOffset((120 - 40) / 2, 120 - 90 - 4);
         
-        // 3) Bezpieczna weryfikacja przed wywołaniem play(), zapobiegająca błędowi duration
+        // Odpalenie animacji biegu po sprawdzeniu, czy istnieje
         if (this.anims.exists('hero-run')) {
             this.hero.play('hero-run');
-        } else {
-            console.error('Animacja hero-run nie istnieje — nie odpalam play()');
         }
 
-        // 5) Grupa trolli z automatycznym czyszczeniem, update oraz max rozmiarem puli 50
+        // ✔️ GRUPA TROLLI Z REUSE I MAXSIZE = 50
         this.trolls = this.physics.add.group({ 
             classType: Phaser.Physics.Arcade.Sprite, 
             runChildUpdate: true, 
@@ -181,7 +177,7 @@ class GameScene extends Phaser.Scene {
             fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
         });
 
-        // Spawner wywołujący dedykowaną funkcję spawnTroll
+        // Spawner trolli wywołujący stabilną funkcję
         this.spawnTimer = this.time.addEvent({ 
             delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true 
         });
@@ -191,46 +187,206 @@ class GameScene extends Phaser.Scene {
 
         this.cursors = this.input.keyboard.createCursorKeys();
         
-        // Klawisze sterowania akcjami gry (K oraz L)
+        // ✔️ STEROWANIE KLAWIATURĄ K I L
         this.keys = this.input.keyboard.addKeys({ shoot: 'K', power: 'L' });
     }
 
-    // Wywołanie spawnu obsługujące parametry domyślne współrzędnych ekranu
     spawnTrollCall() {
         this.spawnTroll(1350, 560);
     }
 
-    // 5) Metoda zaawansowanego spawnu i bezpiecznego odzyskiwania (reuse) instancji ciał z puli
+    // ✔️ SPAWN I RESPAWN TROLLI (PULA REUSE)
     spawnTroll(x = 1350, y = 560) {
         if (this.trollsSpawned >= this.levelData.horde) return;
 
         const level = this.currentLevel || 1;
 
-        // Zapobieganie nakładaniu się spawnów w tym samym punkcie przestrzeni
+        // Zapobieganie nakładaniu spawnów
         this.trolls.children.iterate(troll => {
             if (troll && troll.active && Math.abs(troll.x - x) < 80) {
-                x += Phaser.Math.Between(70, 120);
+                x += Phaser.Math.Between(70, 130);
             }
         });
-
-        // Sprawdzenie czy tekstura trolla istnieje, jeśli nie (404) - funkcja przerywa spawn, chroniąc silnik przed crashem
-        if (!this.textures.exists('troll')) {
-            console.warn('Spawn aborted: Texture "troll" is missing due to 404 error.');
-            return;
-        }
 
         let t = this.trolls.get(x, y, 'troll');
         if (!t) return;
 
-        // Aktywacja ciała fizycznego i widoczności
+        // Reaktywacja ciał z puli za pomocą enableBody
         t.enableBody(true, x, y, true, true);
         t.setActive(true);
         t.setVisible(true);
         t.setOrigin(0.5, 1);
         t.setScale(1.5);
         
-        // Definiowanie sztywnego, łatwego do trafienia hitboxa
         t.setSize(40, 80);
         t.setOffset(12, 8);
         
-        // Zależność punktów życia przeciwnika od aktualnego poziomu (Lvl 2 = 2HP, Lvl 3 = 3HP, Lvl 1 = 1HP)
+        // ✔️ PUNKTY HP ZALEŻNE OD POZIOMU
+        t.hp = level === 2 ? 2 : level === 3 ? 3 : 1;
+        
+        t.body.immovable = false;
+        t.body.moves = true;
+        
+        // Ruch w lewo w stronę gracza
+        t.setVelocityX(-120);
+        t.setFlipX(true);
+        
+        if (this.anims.exists('troll-run')) {
+            t.play('troll-run', true);
+        }
+        
+        console.log('Spawned troll', x, y, 'hp', t.hp);
+        console.log('Troll velocity', t.body.velocity.x, 'enabled', t.body.enable);
+
+        this.trollsSpawned++;
+    }
+
+    // ✔️ SKUTECZNE TRAFIENIE I DESPAWN DO PULI REUSE
+    hitTroll(bullet, troll) {
+        bullet.destroy();
+        if (!troll.active) return;
+
+        troll.hp--;
+        troll.setTint(0xff5555);
+        this.time.delayedCall(100, () => { if (troll.active) troll.clearTint(); });
+
+        if (troll.hp <= 0) {
+            troll.disableBody(true, true); // Schowanie i zwrot do puli
+            this.trollsLeft--;
+            this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+            
+            if (this.trollsLeft <= 0) {
+                this.checkVictory();
+            }
+        } else {
+            troll.setVelocityX(-200);
+            this.time.delayedCall(200, () => {
+                if (troll && troll.active && troll.body) troll.setVelocityX(-120);
+            });
+        }
+    }
+
+    shoot() {
+        if (this.shootCooldown || !this.hero || !this.hero.active) return;
+        this.shootCooldown = true;
+
+        let bullet = this.bullets.create(this.hero.x + 30, this.hero.y - 50, 'hpower2');
+        if (bullet) {
+            bullet.setDisplaySize(40, 40);
+            bullet.body.setSize(30, 30);
+            bullet.setVelocityX(600);
+        }
+
+        this.time.delayedCall(350, () => this.shootCooldown = false);
+    }
+
+    // ✔️ MOC SPECJALNA ODPYCHAJĄCA TROLLE (L)
+    usePower() {
+        this.powerCooldown = true;
+        
+        this.trolls.children.iterate(t => { 
+            if (t && t.active && t.body) {
+                t.setVelocityX(-300); 
+            }
+        });
+
+        this.time.delayedCall(2000, () => {
+            this.powerCooldown = false;
+        });
+    }
+
+    playerHit() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        if (music2 && music2.isPlaying) music2.stop();
+        this.scene.start("GameOverScene");
+    }
+
+    checkVictory() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        if (this.levelIndex < LEVELS.length - 1) {
+            this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
+        } else {
+            this.scene.start("WinScene");
+        }
+    }
+
+    update() {
+        if (!this.hero || !this.hero.body) return;
+        this.hero.setVelocity(0);
+
+        if (this.sound.context && this.sound.context.state === 'suspended') {
+            this.sound.context.resume();
+        }
+
+        if (this.cursors.left.isDown) { 
+            this.hero.setVelocityX(-280); 
+        } else if (this.cursors.right.isDown) { 
+            this.hero.setVelocityX(280); 
+        }
+        
+        if (this.cursors.up.isDown) this.hero.setVelocityY(-280);
+        else if (this.cursors.down.isDown) this.hero.setVelocityY(280);
+
+        // Reakcja na klawisze K i L
+        if (Phaser.Input.Keyboard.JustDown(this.keys.shoot)) { 
+            this.shoot(); 
+        }
+        if (this.keys.power.isDown && !this.powerCooldown) { 
+            this.usePower(); 
+        }
+
+        // ✔️ UPDATE I STABILIZACJA RUCHU TROLLI
+        this.trolls.children.iterate(t => {
+            if (!t || !t.active || !t.body) return;
+            if (Math.abs(t.body.velocity.x) < 1) {
+                t.setVelocityX(-120);
+                console.log('Forced velocity for troll');
+            }
+            if (t.x < -100) {
+                t.disableBody(true, true);
+            }
+        });
+    }
+}
+
+// 4. Ekran Końca Gry (GameOverScene)
+class GameOverScene extends Phaser.Scene { 
+    constructor() { super("GameOverScene"); } 
+    create() {
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
+        this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { 
+            align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' 
+        }).setOrigin(0.5);
+        
+        let btn = this.add.rectangle(640, 460, 320, 60, 0xffffff).setInteractive({ useHandCursor: true });
+        this.add.text(640, 460, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        btn.on('pointerdown', () => this.scene.start("StartScene"));
+    }
+}
+
+// 5. Ekran Wygranej (WinScene)
+class WinScene extends Phaser.Scene { 
+    constructor() { super("WinScene"); } 
+    create() {
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
+        this.add.text(640, 180, "🎉 GRATULACJE! 🎉", { fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 280, "Udało Ci się przejść wszystkie poziomy hordy!", { align: 'center', fontSize: '28px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        
+        let btnRepeat = this.add.rectangle(640, 440, 320, 70, 0x55ff55).setInteractive({ useHandCursor: true });
+        this.add.text(640, 440, "ZAGRAJ PONOWNIE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        btnRepeat.on('pointerdown', () => this.scene.start("GameScene", { levelIndex: 0 }));
+    }
+}
+
+const config = {
+    type: Phaser.AUTO,
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+    scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
+};
+
+const game = new Phaser.Game(config);
+
+</script>
+</body>
+</html>
