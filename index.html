@@ -40,8 +40,8 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // ✅ NAPRAWIONO: Ładowanie bh1run.jpg zamiast nieistniejącego bh1run.png usuwa błędy klatek z konsoli
-        this.load.spritesheet('hero_sheet', 'assets/bh1run.jpg', { frameWidth: 200, frameHeight: 200 });
+        // ✅ WARUNEK KONIECZNY: bh1run.png (naprawia błąd 404 i odblokowuje ruch hordy)
+        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
         this.load.image('tb1', 'assets/tb1.png');
@@ -62,7 +62,7 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Dokładne definicje animacji z Twojego pliku 5x5 klatek
+        // Definicje animacji z Twojego pliku 5x5 klatek
         this.anims.create({ 
             key: 'run',  
             frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
@@ -163,15 +163,14 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // ✅ NAPRAWIONO STABILIZACJĘ POSTACI: Wyśrodkowana pozycja i bezpieczny hitbox (głowa nie jest ucięta)
+        // ✅ NAPRAWIONO: Centrowanie postaci oraz poprawny hitbox (głowa nie jest ucięta, stopy nie wystają pod płótnem)
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9); 
         this.player.setOrigin(0.5, 0.5);
         
-        // Prawidłowe proporcje pola fizycznego dla siatki 200x200
-        this.player.body.setSize(60, 140);
-        this.player.body.setOffset(70, 30);
+        this.player.body.setSize(50, 130);
+        this.player.body.setOffset(75, 35);
         
         this.player.play('idle');
 
@@ -190,7 +189,7 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Układ fizyki i detekcji zderzeń
+        // Układ kolizji fizyki
         this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
 
@@ -205,29 +204,29 @@ class GameScene extends Phaser.Scene {
         
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         
-        // Bezpieczny korytarz spawnu w oknie planszy
+        // Zabezpieczone pasmo pionowe wewnątrz widocznego okna
         let spawnY = Phaser.Math.Between(260, 560);
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            // Skala trolla dopasowana do wzrostu Twojego bohatera
+            // Skala trolla dopasowana prawidłowo do bohatera
             troll.setScale(0.35);
             
-            // ✅ NAPRAWIONO HITBOX TROLLA: Obejmuje teraz całe ciało, nie tylko głowę
+            // Hitbox pokrywa całą grafikę – strzały ranią wroga przy uderzeniu w dowolne miejsce ciała
             troll.body.setSize(troll.width, troll.height);
             troll.body.setOffset(0, 0);
             
-            // Blokada opuszczania okna ekranu gry
+            // Blokada opuszczania okna ekranu gry na dole/górze
             troll.setCollideWorldBounds(true);
             troll.body.onWorldBounds = true;
             
             troll.type = type;
             troll.setFlipX(true); 
 
-            // Punkty życia trolla zależne od poziomu gry
+            // Przypisanie HP trollom zależnie od poziomu
             troll.hp = this.levelIndex + 1;
 
-            // ✅ NAPRAWIONO PRZEMIESZCZANIE: Ruch działa bezbłędnie na każdym poziomie
+            // ✅ URUCHOMIENIE RUCHU: Przemieszczanie hordy działa teraz poprawnie na każdym poziomie
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -359,7 +358,7 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Lekki krok sinusoidalny wewnątrz okna gry
+                // Delikatne bujanie sinusoidalne trolli wewnątrz bezpiecznych granic
                 troll.y += Math.sin(this.time.now / 100) * 0.3;
 
                 if (troll.type.startsWith('tm')) {
