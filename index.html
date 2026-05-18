@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Wersja Grywalna</title>
+    <title>PMP: Horda Troli - Wersja Mobilna 2D</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
@@ -16,10 +16,11 @@
 // Globalne zmienne stanu gry
 let globalVolume = 0.3;
 
+// Definicje 3 poziomów z unikalnymi zestawami trolli
 const LEVELS = [
-    { name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, types: ["tb1"], bg: "tlolv1" },
-    { name: "Level 2 — Kamienna Przełęcz", horde: 35, types: ["tb1", "tb2"], bg: "tlolv2" },
-    { name: "Level 3 — Mchowy Amfiteatr", horde: 50, types: ["tb1", "tb3"], bg: "tlolv3", boss: true }
+    { name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, types: ["tb1", "tb2", "tb3"], bg: "tlolv1" },
+    { name: "Level 2 — Kamienna Przełęcz", horde: 35, types: ["tk1", "tk2", "tk3"], bg: "tlolv2" },
+    { name: "Level 3 — Mchowy Amfiteatr", horde: 50, types: ["tm1", "tm2", "tm3"], bg: "tlolv3", boss: true }
 ];
 
 // 1. Scena Ładowania (BootScene)
@@ -27,25 +28,39 @@ class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
 
     preload() {
+        // Tła menu i poziomów
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tlolv1', 'assets/tlolv1.jpeg');
         this.load.image('tlolv2', 'assets/tlolv2.jpeg');
         this.load.image('tlolv3', 'assets/tlolv3.jpeg');
         
-        this.load.image('hero_static', 'assets/bohater1.png');
-        this.load.spritesheet('hero_sheet', 'assets/ruch.png', { frameWidth: 200, frameHeight: 200 });
+        // Ataki i ikony
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
+        // BOHATER GŁÓWNY - Nowy plik ze spritesheetem ruchu bh1run.png (siatka 5x5)
+        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
+
+        // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
         this.load.image('tb1', 'assets/tb1.png');
         this.load.image('tb2', 'assets/tb2.png');
         this.load.image('tb3', 'assets/tb3.png');
+        
+        this.load.image('tk1', 'assets/tk1.png');
+        this.load.image('tk2', 'assets/tk2.png');
+        this.load.image('tk3', 'assets/tk3.png');
+        
+        this.load.image('tm1', 'assets/tm1.png');
+        this.load.image('tm2', 'assets/tm2.png');
+        this.load.image('tm3', 'assets/tm3.png');
 
+        // Pliki audio
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
     }
 
     create() {
+        // Generowanie animacji dla nowego pliku bh1run.png
         this.anims.create({ 
             key: 'run',  
             frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 14 }), 
@@ -70,41 +85,38 @@ class BootScene extends Phaser.Scene {
     }
 }
 
-// 2. Menu Główne (StartScene) - PRZYWRÓCONO SUWAK I POPRAWIONO START
+// 2. Menu Główne (StartScene)
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
 
     create() {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
-        // Uruchomienie muzyki z menu (track1) przy interakcji użytkownika
-        const menuTrack = this.sound.get('track1');
-        if (!menuTrack) {
-            this.sound.play('track1', { loop: true, volume: globalVolume });
-        } else if (!menuTrack.isPlaying) {
-            menuTrack.play({ loop: true, volume: globalVolume });
-        }
+        try {
+            if (!this.sound.get('track1')) {
+                this.sound.play('track1', { loop: true, volume: globalVolume });
+            }
+        } catch (e) {}
 
-        // Przycisk START GRY
+        // Przycisk START
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
         this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
-            const existingTrack = this.sound.get('track1');
-            if (!existingTrack) {
-                this.sound.play('track1', { loop: true, volume: globalVolume });
-            } else if (!existingTrack.isPlaying) {
-                existingTrack.play({ loop: true, volume: globalVolume });
-            }
-
-            // Przejście bezpieczne z przekazaniem poprawnego poziomu startowego
+            try {
+                if (!this.sound.get('track1').isPlaying) {
+                    this.sound.play('track1', { loop: true, volume: globalVolume });
+                }
+            } catch (e) {}
+            
+            // Start od poziomu 0 (Level 1)
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
-        // --- PRZYWRÓCONY SUWAK GŁOŚNOŚCI ---
+        // Suwak Głośności
         this.add.text(640, 540, "GŁOŚNOŚĆ", { fontSize: '20px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        this.add.rectangle(640, 580, 200, 10, 0x333333); // Tło paska
+        this.add.rectangle(640, 580, 200, 10, 0x333333); 
         let handle = this.add.circle(540 + (globalVolume * 200), 580, 15, 0xffffff).setInteractive({ useHandCursor: true });
         
         this.input.setDraggable(handle);
@@ -117,47 +129,34 @@ class StartScene extends Phaser.Scene {
     }
 }
 
-// 3. Scena Rozgrywki (GameScene) - POPRAWIONA LOGIKA POZIOMÓW
+// 3. Scena Rozgrywki (GameScene)
 class GameScene extends Phaser.Scene {
     constructor() { 
         super("GameScene"); 
     }
 
     init(data) {
-        // Naprawiony błąd przypisywania sceny: dynamicznie czyta dane wejściowe
         this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
-        this.levelData = LEVELS[this.levelIndex] || LEVELS[0];
+        this.levelData = LEVELS[this.levelIndex];
     }
 
     create() {
-        const menuTrack = this.sound.get('track1');
-        if (menuTrack && menuTrack.isPlaying) {
-            menuTrack.stop();
-        }
+        if (this.sound.get('track1')) this.sound.stop('track1');
+        try {
+            if (!this.sound.get('track2')) this.sound.play('track2', { loop: true, volume: globalVolume });
+        } catch (e) {}
 
-        const levelTrack = this.sound.get('track2');
-        if (!levelTrack) {
-            this.sound.play('track2', { loop: true, volume: globalVolume });
-        } else if (!levelTrack.isPlaying) {
-            levelTrack.play({ loop: true, volume: globalVolume });
-        }
-
-        // Renderowanie tła poziomu
+        // Tło aktualnego poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // Gracz (Bohater 1)
+        // Gracz (Bohater) z pliku bh1run.png
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
         this.player.play('idle');
-        this.player.on('animationcomplete-atk', () => {
-            if (this.player && this.player.active) {
-                this.player.play('idle');
-            }
-        });
 
-        // Grupy fizyczne pocisków i hordy
+        // Grupy silnika fizyki
         this.trolls = this.physics.add.group();
         this.powers = this.physics.add.group();
 
@@ -168,10 +167,12 @@ class GameScene extends Phaser.Scene {
             fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
         });
 
+        // Interwał pojawiania się trolli
         this.spawnTimer = this.time.addEvent({ 
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
+        // Obsługa kolizji i nakładania obiektów
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
         this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
@@ -182,6 +183,7 @@ class GameScene extends Phaser.Scene {
     spawnTroll() {
         if (this.trollsSpawned >= this.levelData.horde) return;
         
+        // Losowanie trolla z puli przypisanej do konkretnego poziomu
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         let spawnY = Phaser.Math.Between(220, 640);
         let troll = this.trolls.create(1350, spawnY, type);
@@ -191,9 +193,13 @@ class GameScene extends Phaser.Scene {
             troll.body.setCircle(troll.width / 2.5);
             troll.type = type;
 
-            if (type === 'tb1') troll.setVelocityX(-170); 
-            if (type === 'tb2') troll.setVelocityX(-100); 
-            if (type === 'tb3') troll.setVelocityX(-230); 
+            // NAPRAWA: Obrócenie trolla przodem do bohatera (w lewą stronę)
+            troll.setFlipX(true); 
+
+            // Prędkości bazowe poruszania się hordy
+            if (type.startsWith('tb')) troll.setVelocityX(-170); // Poziom 1
+            if (type.startsWith('tk')) troll.setVelocityX(-110); // Poziom 2
+            if (type.startsWith('tm')) troll.setVelocityX(-220); // Poziom 3
 
             this.trollsSpawned++;
         }
@@ -203,6 +209,7 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.active) return;
         
         this.player.play('atk');
+        this.player.chain('idle');
 
         let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
         if (projectile) {
@@ -231,17 +238,17 @@ class GameScene extends Phaser.Scene {
 
     playerHit() {
         if (this.spawnTimer) this.spawnTimer.destroy();
-        this.scene.start("GameOverScene", { levelIndex: this.levelIndex });
+        this.scene.start("GameOverScene");
     }
 
     checkVictory() {
         if (this.spawnTimer) this.spawnTimer.destroy();
         
-        // Przejście do kolejnego poziomu, jeśli istnieje
+        // Sprawdzenie czy są kolejne poziomy, czy to koniec gry
         if (this.levelIndex < LEVELS.length - 1) {
             this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
         } else {
-            this.scene.start("WinScene");
+            this.scene.start("WinScene"); // Ukonczone 3 poziomy -> Ekran Gratulacji
         }
     }
 
@@ -249,8 +256,14 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        if (this.cursors.left.isDown) { this.player.setVelocityX(-320); this.player.setFlipX(true); }
-        else if (this.cursors.right.isDown) { this.player.setVelocityX(320); this.player.setFlipX(false); }
+        // NAPRAWA: Odbicie lustrzane bohatera (FlipX) w zależności od kierunku ruchu
+        if (this.cursors.left.isDown) { 
+            this.player.setVelocityX(-320); 
+            this.player.setFlipX(true); // Lustrzane odbicie w lewo
+        } else if (this.cursors.right.isDown) { 
+            this.player.setVelocityX(320); 
+            this.player.setFlipX(false); // Normalna pozycja w prawo
+        }
         
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
         else if (this.cursors.down.isDown) this.player.setVelocityY(320);
@@ -262,39 +275,63 @@ class GameScene extends Phaser.Scene {
             if (currentAnim !== 'idle' && currentAnim !== 'atk') this.player.play('idle');
         }
 
+        // NAPRAWA: Dodanie prostej animacji biegu (skalowanie góra/dół) dla wszystkich trolli
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                if (troll.type === 'tb3') troll.y += Math.sin(this.time.now / 80) * 4;
+                // Efekt lekkiego podskakiwania/bujania w biegu
+                troll.scaleY = 0.9 + Math.sin(this.time.now / 100) * 0.05;
+
+                // Dodatkowe falowanie dla mchowych trolli (tm) z poziomu 3
+                if (troll.type.startsWith('tm')) {
+                    troll.y += Math.sin(this.time.now / 80) * 3;
+                }
+
+                // Troll przekracza linię obrony
                 if (troll.x < -60) this.playerHit();
             }
         });
     }
 }
 
-// Sceny końcowe z obsługą restartu konkretnego poziomu
+// 4. Scena Końca Gry (GameOverScene) - ZMIANA: Powrót do menu głównego
 class GameOverScene extends Phaser.Scene { 
     constructor() { super("GameOverScene"); } 
-    init(data) { this.levelIndex = data.levelIndex || 0; }
     create() {
         if (this.sound.get('track2')) this.sound.stop('track2');
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
-        this.add.text(640, 360, "GAME OVER\nKliknij, aby ponowić", { align: 'center', fontSize: '40px', fill: '#ff5555' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("GameScene", { levelIndex: this.levelIndex }));
+        this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        
+        let btn = this.add.rectangle(640, 460, 320, 60, 0xffffff).setInteractive({ useHandCursor: true });
+        this.add.text(640, 460, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        
+        // Kliknięcie przenosi z powrotem do StartScene
+        btn.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
+// 5. Scena Zwycięstwa (WinScene) - NOWOŚĆ: Napis Gratulacje i ikona powrotu
 class WinScene extends Phaser.Scene { 
     constructor() { super("WinScene"); } 
     create() {
         if (this.sound.get('track2')) this.sound.stop('track2');
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
-        this.add.text(640, 360, "WYGRAŁEŚ!\nTwarz ocalała.", { align: 'center', fontSize: '40px', fill: '#55ff55' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("StartScene"));
+        
+        this.add.text(640, 260, "GRATULACJE!", { fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 340, "Udało Ci się przejść wszystkie 3 poziomy.\nTwarz bieli została ocalona!", { align: 'center', fontSize: '24px', fill: '#fff', fontFamily: 'Arial' }).setOrigin(0.5);
+        
+        // Interaktywny panel powrotu / ponownej gry
+        let btn = this.add.rectangle(640, 480, 320, 60, 0x55ff55).setInteractive({ useHandCursor: true });
+        this.add.text(640, 480, "ZAGRAJ PONOWNIE", { fontSize: '22px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        
+        btn.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
+// Główna konfiguracja uruchomieniowa
 const config = {
     type: Phaser.AUTO,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
-    input: { activePointers: 2 },
+    input: { activePointers: 3 },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
