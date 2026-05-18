@@ -25,7 +25,7 @@ const LEVELS = [
     { name: "Level 3 — Mchowy Amfiteatr", horde: 50, types: ["tm1", "tm2", "tm3"], bg: "tlolv3", boss: true }
 ];
 
-// 1. Scena Ładowania (BootScene)
+// 1. Scena Ładowania (BootScene) - NAPRAWIONO: Asynchroniczne ładowanie
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
 
@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Nowy plik ze spritesheetem ruchu bh1run.png (siatka 5x5)
+        // BOHATER GŁÓWNY - Nowy plik ze spritesheetem ruchu bh1run.png
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -59,9 +59,20 @@ class BootScene extends Phaser.Scene {
         // Pliki audio
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
+
+        // Obsluga bledu ładowania
+        this.load.on('loaderror', (fileObject) => {
+            console.error('Błąd ładowania:', fileObject.key);
+        });
+
+        this.load.on('filecomplete', (key) => {
+            console.log('Załadowany:', key);
+        });
     }
 
     create() {
+        console.log('BootScene create - zasoby załadowane');
+        
         // Konfiguracja animacji dostosowana bezpiecznie pod nowy plik bh1run.png
         this.anims.create({ 
             key: 'run',  
@@ -83,15 +94,17 @@ class BootScene extends Phaser.Scene {
             frameRate: 15 
         });
 
+        console.log('Animacje utworzone - przejście do StartScene');
         this.scene.start("StartScene");
     }
 }
 
-// 2. Menu Główne (StartScene) - NAPRAWIONA BLOKADA PRZYCISKU
+// 2. Menu Główne (StartScene)
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
 
     create() {
+        console.log('StartScene create');
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
         // Bezpieczne tworzenie instancji audio menu
@@ -99,7 +112,7 @@ class StartScene extends Phaser.Scene {
             music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
         }
         
-        // Próba automatycznego odtworzenia (zabezpieczona przed polityką przeglądarek)
+        // Próba automatycznego odtworzenia
         try {
             if (!music1.isPlaying) {
                 music1.play();
@@ -110,17 +123,16 @@ class StartScene extends Phaser.Scene {
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
         this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
 
-        // NAPRAWIONO: Poprawna i stabilna logika przejścia bez wywoływania crashu obiektów audio
         btnArea.on('pointerdown', () => {
+            console.log('START GRY kliknięty - przejście do GameScene');
             btnArea.disableInteractive();
             
             try {
-                if (music1 && !music1.isPlaying) {
-                    music1.play();
+                if (music1 && music1.isPlaying) {
+                    music1.stop();
                 }
             } catch (e) {}
             
-            // Bezpieczne przejście do poziomu 1
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -148,10 +160,13 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
         this.levelData = LEVELS[this.levelIndex];
+        console.log('GameScene init - Level:', this.levelIndex + 1);
     }
 
     create() {
-        // Płynna zmiana utworów muzycznych przy starcie walki
+        console.log('GameScene create - Level:', this.levelIndex + 1);
+        
+        // Płynna zmiana utworów muzycznych
         if (music1 && music1.isPlaying) music1.stop();
         
         if (!music2) {
@@ -162,19 +177,19 @@ class GameScene extends Phaser.Scene {
             if (!music2.isPlaying) {
                 music2.play();
             }
-        } catch (e) {}
+        } catch (e) { console.log('Audio: czekanie na interakcję'); }
 
-        // Tło aktualnego poziomu
+        // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // Gracz (Bohater) z pliku bh1run.png
+        // Bohater
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
         this.player.play('idle');
 
-        // Grupy silnika fizyki
+        // Grupy
         this.trolls = this.physics.add.group();
         this.powers = this.physics.add.group();
 
@@ -185,12 +200,12 @@ class GameScene extends Phaser.Scene {
             fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
         });
 
-        // Interwał pojawiania się trolli
+        // Timer pojawiania trolli
         this.spawnTimer = this.time.addEvent({ 
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Obsługa kolizji i nakładania obiektów
+        // Kolizje
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
         this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
@@ -201,7 +216,6 @@ class GameScene extends Phaser.Scene {
     spawnTroll() {
         if (this.trollsSpawned >= this.levelData.horde) return;
         
-        // Losowanie trolla z puli przypisanej do konkretnego poziomu
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         let spawnY = Phaser.Math.Between(220, 640);
         let troll = this.trolls.create(1350, spawnY, type);
@@ -211,13 +225,12 @@ class GameScene extends Phaser.Scene {
             troll.body.setCircle(troll.width / 2.5);
             troll.type = type;
 
-            // ✅ NAPRAWIONO: Usunięto setFlipX(true) - trole teraz biegną PRZODEM ku graczowi
-            // Trole biegą naturalnie w kierunku bohatera bez odbicia lustrzanego
+            // ✅ Trole biegną PRZODEM ku graczowi (bez setFlipX)
 
-            // Prędkości bazowe poruszania się hordy (ujemne = ruch w lewo ku graczowi)
-            if (type.startsWith('tb')) troll.setVelocityX(-170); // Poziom 1
-            if (type.startsWith('tk')) troll.setVelocityX(-110); // Poziom 2
-            if (type.startsWith('tm')) troll.setVelocityX(-220); // Poziom 3
+            // Prędkości trolli
+            if (type.startsWith('tb')) troll.setVelocityX(-170);
+            if (type.startsWith('tk')) troll.setVelocityX(-110);
+            if (type.startsWith('tm')) troll.setVelocityX(-220);
 
             this.trollsSpawned++;
         }
@@ -255,20 +268,21 @@ class GameScene extends Phaser.Scene {
     }
 
     playerHit() {
-        // ✅ NAPRAWIONO: Komunikat końca gry i powrót do menu
+        console.log('Gracz trafiony! Koniec gry.');
         if (this.spawnTimer) this.spawnTimer.destroy();
         if (music2 && music2.isPlaying) music2.stop();
         this.scene.start("GameOverScene");
     }
 
     checkVictory() {
+        console.log('Poziom ukończony! Level:', this.levelIndex + 1);
         if (this.spawnTimer) this.spawnTimer.destroy();
         
-        // Sprawdzenie czy są kolejne poziomy, czy to koniec gry
         if (this.levelIndex < LEVELS.length - 1) {
             this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
         } else {
-            this.scene.start("WinScene"); // Ukonczone 3 poziomy -> Ekran Gratulacji
+            console.log('GRAT! Koniec gry');
+            this.scene.start("WinScene");
         }
     }
 
@@ -276,13 +290,13 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Odbicie lustrzane bohatera (FlipX) w zależności od kierunku ruchu
+        // Sterowanie bohaterem
         if (this.cursors.left.isDown) { 
             this.player.setVelocityX(-320); 
-            this.player.setFlipX(true); // Lustrzane odbicie w lewo
+            this.player.setFlipX(true);
         } else if (this.cursors.right.isDown) { 
             this.player.setVelocityX(320); 
-            this.player.setFlipX(false); // Normalna pozycja w prawo
+            this.player.setFlipX(false);
         }
         
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
@@ -295,66 +309,82 @@ class GameScene extends Phaser.Scene {
             if (currentAnim !== 'idle' && currentAnim !== 'atk') this.player.play('idle');
         }
 
-        // ✅ NAPRAWIONO: Proceduralna animacja biegu dla wszystkich trolli
+        // ✅ Animacja biegu trolli
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Efekt podskakiwania w biegu (animacja ruchu)
                 troll.scaleY = 0.85 + Math.sin(this.time.now / 80) * 0.12;
                 troll.scaleX = 1.0 + Math.sin(this.time.now / 100) * 0.05;
 
-                // Dodatkowe falowanie dla mchowych trolli (tm) z poziomu 3
+                // Falowanie mchowych trolli (Level 3)
                 if (troll.type.startsWith('tm')) {
                     troll.y += Math.sin(this.time.now / 70) * 2.5;
                 }
 
-                // Troll przekracza linię obrony
+                // Kolizja - troll dotarł do lewej krawędzi
                 if (troll.x < -60) this.playerHit();
             }
         });
     }
 }
 
-// 4. Scena Końca Gry (GameOverScene) — Powrót do menu głównego
+// 4. Ekran Końca Gry
 class GameOverScene extends Phaser.Scene { 
     constructor() { super("GameOverScene"); } 
     create() {
         if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
-        // ✅ NAPRAWIONO: Komunikat końca gry
-        this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { 
+            align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' 
+        }).setOrigin(0.5);
         
         let btn = this.add.rectangle(640, 460, 320, 60, 0xffffff).setInteractive({ useHandCursor: true });
         this.add.text(640, 460, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
         
-        btn.on('pointerdown', () => this.scene.start("StartScene"));
+        btn.on('pointerdown', () => {
+            console.log('Powrót do menu');
+            this.scene.start("StartScene");
+        });
     }
 }
 
-// 5. Scena Zwycięstwa (WinScene) — Ekran Gratulacji i opcje
+// 5. Ekran Gratulacji
 class WinScene extends Phaser.Scene { 
     constructor() { super("WinScene"); } 
     create() {
         if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
         
-        // ✅ NAPRAWIONO: Ekran gratulacji z pełnym komunikatem
-        this.add.text(640, 180, "🎉 GRATULACJE! 🎉", { fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        this.add.text(640, 280, "Udało Ci się przejść wszystkie 3 poziomy!", { align: 'center', fontSize: '28px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        this.add.text(640, 340, "Twarz bieli została ocalona!", { align: 'center', fontSize: '24px', fill: '#55ff55', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 180, "🎉 GRATULACJE! 🎉", { 
+            fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' 
+        }).setOrigin(0.5);
+        
+        this.add.text(640, 280, "Udało Ci się przejść wszystkie 3 poziomy!", { 
+            align: 'center', fontSize: '28px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' 
+        }).setOrigin(0.5);
+        
+        this.add.text(640, 340, "Twarz bieli została ocalona!", { 
+            align: 'center', fontSize: '24px', fill: '#55ff55', fontFamily: 'Arial' 
+        }).setOrigin(0.5);
         
         // Przycisk: ZAGRAJ PONOWNIE
         let btnRepeat = this.add.rectangle(640, 440, 320, 70, 0x55ff55).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0xffffff);
         this.add.text(640, 440, "ZAGRAJ PONOWNIE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        btnRepeat.on('pointerdown', () => this.scene.start("GameScene", { levelIndex: 0 }));
+        btnRepeat.on('pointerdown', () => {
+            console.log('Restart gry od Level 1');
+            this.scene.start("GameScene", { levelIndex: 0 });
+        });
         
         // Przycisk: MENU GŁÓWNE
         let btnMenu = this.add.rectangle(640, 540, 320, 70, 0xffffff).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0x55ff55);
         this.add.text(640, 540, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        btnMenu.on('pointerdown', () => this.scene.start("StartScene"));
+        btnMenu.on('pointerdown', () => {
+            console.log('Powrót do menu z WinScene');
+            this.scene.start("StartScene");
+        });
     }
 }
 
-// Główna konfiguracja uruchomieniowa
+// Główna konfiguracja
 const config = {
     type: Phaser.AUTO,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
@@ -362,7 +392,10 @@ const config = {
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
+
+console.log('Inicjalizacja Phaser...');
 const game = new Phaser.Game(config);
+console.log('Gra uruchomiona!');
 
 </script>
 </body>
