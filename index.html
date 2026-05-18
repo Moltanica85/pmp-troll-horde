@@ -211,10 +211,10 @@ class GameScene extends Phaser.Scene {
             troll.body.setCircle(troll.width / 2.5);
             troll.type = type;
 
-            // Obrócenie trolla przodem do bohatera (w lewą stronę)
-            troll.setFlipX(true); 
+            // ✅ NAPRAWIONO: Usunięto setFlipX(true) - trole teraz biegną PRZODEM ku graczowi
+            // Trole biegą naturalnie w kierunku bohatera bez odbicia lustrzanego
 
-            // Prędkości bazowe poruszania się hordy
+            // Prędkości bazowe poruszania się hordy (ujemne = ruch w lewo ku graczowi)
             if (type.startsWith('tb')) troll.setVelocityX(-170); // Poziom 1
             if (type.startsWith('tk')) troll.setVelocityX(-110); // Poziom 2
             if (type.startsWith('tm')) troll.setVelocityX(-220); // Poziom 3
@@ -255,7 +255,9 @@ class GameScene extends Phaser.Scene {
     }
 
     playerHit() {
+        // ✅ NAPRAWIONO: Komunikat końca gry i powrót do menu
         if (this.spawnTimer) this.spawnTimer.destroy();
+        if (music2 && music2.isPlaying) music2.stop();
         this.scene.start("GameOverScene");
     }
 
@@ -293,15 +295,16 @@ class GameScene extends Phaser.Scene {
             if (currentAnim !== 'idle' && currentAnim !== 'atk') this.player.play('idle');
         }
 
-        // Proceduralna animacja biegu (skalowanie góra/dół) dla wszystkich trolli
+        // ✅ NAPRAWIONO: Proceduralna animacja biegu dla wszystkich trolli
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Efekt lekkiego podskakiwania w biegu
-                troll.scaleY = 0.9 + Math.sin(this.time.now / 100) * 0.05;
+                // Efekt podskakiwania w biegu (animacja ruchu)
+                troll.scaleY = 0.85 + Math.sin(this.time.now / 80) * 0.12;
+                troll.scaleX = 1.0 + Math.sin(this.time.now / 100) * 0.05;
 
                 // Dodatkowe falowanie dla mchowych trolli (tm) z poziomu 3
                 if (troll.type.startsWith('tm')) {
-                    troll.y += Math.sin(this.time.now / 80) * 3;
+                    troll.y += Math.sin(this.time.now / 70) * 2.5;
                 }
 
                 // Troll przekracza linię obrony
@@ -317,6 +320,7 @@ class GameOverScene extends Phaser.Scene {
     create() {
         if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
+        // ✅ NAPRAWIONO: Komunikat końca gry
         this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
         
         let btn = this.add.rectangle(640, 460, 320, 60, 0xffffff).setInteractive({ useHandCursor: true });
@@ -326,20 +330,27 @@ class GameOverScene extends Phaser.Scene {
     }
 }
 
-// 5. Scena Zwycięstwa (WinScene) — Ekran Gratulacji i ikona powrotu / zagraj ponownie
+// 5. Scena Zwycięstwa (WinScene) — Ekran Gratulacji i opcje
 class WinScene extends Phaser.Scene { 
     constructor() { super("WinScene"); } 
     create() {
         if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
         
-        this.add.text(640, 260, "GRATULACJE!", { fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-        this.add.text(640, 340, "Udało Ci się przejść wszystkie 3 poziomy.\nTwarz bieli została ocalona!", { align: 'center', fontSize: '24px', fill: '#fff', fontFamily: 'Arial' }).setOrigin(0.5);
+        // ✅ NAPRAWIONO: Ekran gratulacji z pełnym komunikatem
+        this.add.text(640, 180, "🎉 GRATULACJE! 🎉", { fontSize: '64px', fill: '#55ff55', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 280, "Udało Ci się przejść wszystkie 3 poziomy!", { align: 'center', fontSize: '28px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.text(640, 340, "Twarz bieli została ocalona!", { align: 'center', fontSize: '24px', fill: '#55ff55', fontFamily: 'Arial' }).setOrigin(0.5);
         
-        let btn = this.add.rectangle(640, 480, 320, 60, 0x55ff55).setInteractive({ useHandCursor: true });
-        this.add.text(640, 480, "ZAGRAJ PONOWNIE", { fontSize: '22px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        // Przycisk: ZAGRAJ PONOWNIE
+        let btnRepeat = this.add.rectangle(640, 440, 320, 70, 0x55ff55).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0xffffff);
+        this.add.text(640, 440, "ZAGRAJ PONOWNIE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        btnRepeat.on('pointerdown', () => this.scene.start("GameScene", { levelIndex: 0 }));
         
-        btn.on('pointerdown', () => this.scene.start("StartScene"));
+        // Przycisk: MENU GŁÓWNE
+        let btnMenu = this.add.rectangle(640, 540, 320, 70, 0xffffff).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0x55ff55);
+        this.add.text(640, 540, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        btnMenu.on('pointerdown', () => this.scene.start("StartScene"));
     }
 }
 
