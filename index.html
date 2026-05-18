@@ -78,11 +78,12 @@ class StartScene extends Phaser.Scene {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
         // Uruchomienie muzyki z menu (track1) przy interakcji użytkownika
-        try {
-            if (!this.sound.get('track1')) {
-                this.sound.play('track1', { loop: true, volume: globalVolume });
-            }
-        } catch (e) { console.log("Audio autoplay restriction handled."); }
+        const menuTrack = this.sound.get('track1');
+        if (!menuTrack) {
+            this.sound.play('track1', { loop: true, volume: globalVolume });
+        } else if (!menuTrack.isPlaying) {
+            menuTrack.play({ loop: true, volume: globalVolume });
+        }
 
         // Przycisk START GRY
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
@@ -90,12 +91,13 @@ class StartScene extends Phaser.Scene {
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
-            try {
-                if (!this.sound.get('track1').isPlaying) {
-                    this.sound.play('track1', { loop: true, volume: globalVolume });
-                }
-            } catch (e) {}
-            
+            const existingTrack = this.sound.get('track1');
+            if (!existingTrack) {
+                this.sound.play('track1', { loop: true, volume: globalVolume });
+            } else if (!existingTrack.isPlaying) {
+                existingTrack.play({ loop: true, volume: globalVolume });
+            }
+
             // Przejście bezpieczne z przekazaniem poprawnego poziomu startowego
             this.scene.start("GameScene", { levelIndex: 0 });
         });
@@ -124,14 +126,21 @@ class GameScene extends Phaser.Scene {
     init(data) {
         // Naprawiony błąd przypisywania sceny: dynamicznie czyta dane wejściowe
         this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
-        this.levelData = LEVELS[this.levelIndex];
+        this.levelData = LEVELS[this.levelIndex] || LEVELS[0];
     }
 
     create() {
-        if (this.sound.get('track1')) this.sound.stop('track1');
-        try {
-            if (!this.sound.get('track2')) this.sound.play('track2', { loop: true, volume: globalVolume });
-        } catch (e) {}
+        const menuTrack = this.sound.get('track1');
+        if (menuTrack && menuTrack.isPlaying) {
+            menuTrack.stop();
+        }
+
+        const levelTrack = this.sound.get('track2');
+        if (!levelTrack) {
+            this.sound.play('track2', { loop: true, volume: globalVolume });
+        } else if (!levelTrack.isPlaying) {
+            levelTrack.play({ loop: true, volume: globalVolume });
+        }
 
         // Renderowanie tła poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
@@ -142,6 +151,11 @@ class GameScene extends Phaser.Scene {
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
         this.player.play('idle');
+        this.player.on('animationcomplete-atk', () => {
+            if (this.player && this.player.active) {
+                this.player.play('idle');
+            }
+        });
 
         // Grupy fizyczne pocisków i hordy
         this.trolls = this.physics.add.group();
@@ -189,7 +203,6 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.active) return;
         
         this.player.play('atk');
-        this.player.chain('idle');
 
         let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
         if (projectile) {
