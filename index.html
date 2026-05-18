@@ -304,6 +304,296 @@ class GameScene extends Phaser.Scene {
     checkVictory() {
         if (this.spawnTimer) this.spawnTimer.destroy();
         if (this.levelIndex < LEVELS.length - 1) {
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>PMP: Horda Troli - Wersja Stabilna 2D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; padding: 0; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+<script>
+
+// Globalne zmienne stanu gry
+let globalVolume = 0.3;
+let music1 = null;
+let music2 = null;
+
+// Definicje 3 poziomów gry
+const LEVELS = [
+    { index: 1, name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, bg: "tlolv1" },
+    { index: 2, name: "Level 2 — Kamienna Przełęcz", horde: 35, bg: "tlolv2" },
+    { index: 3, name: "Level 3 — Mchowy Amfiteatr", horde: 50, bg: "tlolv3" }
+];
+
+// 1. Scena Ładowania (BootScene)
+class BootScene extends Phaser.Scene {
+    constructor() { super('BootScene'); }
+
+    preload() {
+        // Tła dla poziomów
+        this.load.image('oknoglowne', 'assets/oknoglowne.png');
+        this.load.image('tlolv1', 'assets/tlolv1.jpeg');
+        this.load.image('tlolv2', 'assets/tlolv2.jpeg');
+        this.load.image('tlolv3', 'assets/tlolv3.jpeg');
+        
+        // Obiekty i ikony
+        this.load.image('hpower2', 'assets/hpower2.png');
+        this.load.image('opower1', 'assets/opower1.png');
+
+        // Czyszczenie pamięci podręcznej tekstur
+        if (this.textures.exists('hero_sheet')) this.textures.remove('hero_sheet');
+        if (this.textures.exists('troll')) this.textures.remove('troll');
+
+        // Parametry spritesheetu: 600x600 px, siatka 5x5 -> klatka 120x120 px
+        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 120, frameHeight: 120, margin: 0, spacing: 0 });
+        this.load.spritesheet('troll', 'assets/troll.png', { frameWidth: 64, frameHeight: 64, margin: 0, spacing: 0 });
+
+        this.load.audio('track1', 'assets/muzyka1.mp3');
+        this.load.audio('track2', 'assets/muzyka2.mp3');
+    }
+
+    create() {
+        const frameCount = this.textures.get('hero_sheet').frameTotal;
+        console.log('hero_sheet frames:', frameCount);
+
+        // Tworzenie animacji biegu bohatera (klatki od 0 do 24)
+        if (frameCount >= 25) {
+            this.anims.create({
+                key: 'hero-run',
+                frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 24 }),
+                frameRate: 14, // Zmniejszono tempo z 24 na naturalne 14 klatek/s
+                repeat: -1
+            });
+        } else {
+            this.anims.create({
+                key: 'hero-run',
+                frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: frameCount - 1 }),
+                frameRate: 12,
+                repeat: -1
+            });
+        }
+
+        // Animacja biegu trolla
+        const trollFrames = this.textures.get('troll') ? this.textures.get('troll').frameTotal : 0;
+        this.anims.create({
+            key: 'troll-run',
+            frames: this.anims.generateFrameNumbers('troll', { start: 0, end: Math.min(24, trollFrames - 1) }),
+            frameRate: 14,
+            repeat: -1
+        });
+
+        this.scene.start("StartScene");
+    }
+}
+
+// 2. Menu Główne (StartScene)
+class StartScene extends Phaser.Scene {
+    constructor() { super("StartScene"); }
+
+    create() {
+        this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
+
+        let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
+        this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+
+        btnArea.on('pointerdown', () => {
+            btnArea.disableInteractive();
+            if (this.sound.context && this.sound.context.state === 'suspended') {
+                this.sound.context.resume();
+            }
+            if (!music1) music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
+            if (!music1.isPlaying) music1.play();
+            
+            this.scene.start("GameScene", { levelIndex: 0 });
+        });
+
+        // Suwak Głośności
+        this.add.text(640, 540, "GŁOŚNOŚĆ", { fontSize: '20px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.rectangle(640, 580, 200, 10, 0x333333); 
+        let handle = this.add.circle(540 + (globalVolume * 200), 580, 15, 0xffffff).setInteractive({ useHandCursor: true });
+        
+        this.input.setDraggable(handle);
+        this.input.on('drag', (pointer, gameObject, dragX) => {
+            dragX = Phaser.Math.Clamp(dragX, 540, 740);
+            gameObject.x = dragX;
+            globalVolume = (dragX - 540) / 200;
+            this.sound.setVolume(globalVolume);
+        });
+    }
+}
+
+// 3. Scena Rozgrywki (GameScene)
+class GameScene extends Phaser.Scene {
+    constructor() { super("GameScene"); }
+
+    init(data) {
+        this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
+        this.levelData = LEVELS[this.levelIndex];
+        this.currentLevel = this.levelData.index;
+        this.powerCooldown = false;
+        this.shootCooldown = false;
+    }
+
+    create() {
+        if (music1 && music1.isPlaying) music1.stop();
+        if (!music2) music2 = this.sound.add('track2', { loop: true, volume: globalVolume });
+        try { if (!music2.isPlaying) music2.play(); } catch (e) {}
+
+        this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
+
+        // Pojedynczy sprajt bohatera (klatka startowa 0)
+        this.hero = this.physics.add.sprite(100, 450, 'hero_sheet', 0);
+        this.hero.setOrigin(0.5, 1);
+        this.hero.setScale(1);
+        this.hero.setCollideWorldBounds(true);
+        
+        // Stabilny hitbox wycentrowany w ramce 120x120px
+        this.hero.setSize(40, 90);
+        this.hero.setOffset((120 - 40) / 2, 120 - 90 - 4);
+
+        // Grupa trolli (maksymalny rozmiar puli reuse = 50)
+        this.trolls = this.physics.add.group({ 
+            classType: Phaser.Physics.Arcade.Sprite, 
+            runChildUpdate: true, 
+            maxSize: 50 
+        });
+
+        this.bullets = this.physics.add.group();
+
+        this.trollsLeft = this.levelData.horde;
+        this.trollsSpawned = 0;
+        
+        this.uiText = this.add.text(30, 30, `${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`, { 
+            fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
+        });
+
+        // Cykliczny spawner trolli co 2 sekundy
+        this.spawnTimer = this.time.addEvent({ 
+            delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true 
+        });
+
+        this.physics.add.collider(this.bullets, this.trolls, this.hitTroll, null, this);
+        this.physics.add.overlap(this.hero, this.trolls, this.playerHit, null, this);
+
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.keys = this.input.keyboard.addKeys({ shoot: 'K', power: 'L' });
+    }
+
+    spawnTrollCall() {
+        this.spawnTroll(1350, 560);
+    }
+
+    // Bezpieczny spawner operujący na aktywacji ciał (enableBody)
+    spawnTroll(x = 1350, y = 560) {
+        if (this.trollsSpawned >= this.levelData.horde) return;
+
+        const level = this.currentLevel || 1;
+
+        // Zapobieganie nakładaniu się spawnów przeciwników
+        this.trolls.children.iterate(troll => {
+            if (troll && troll.active && Math.abs(troll.x - x) < 80) {
+                x += Phaser.Math.Between(70, 130);
+            }
+        });
+
+        let t = this.trolls.get(x, y, 'troll');
+        if (!t) return;
+
+        t.enableBody(true, x, y, true, true);
+        t.setActive(true);
+        t.setVisible(true);
+        t.setOrigin(0.5, 1);
+        t.setScale(1.5);
+        
+        t.setSize(40, 80);
+        t.setOffset(12, 8);
+        
+        // HP trolli zależy od numeru aktualnego poziomu (Lvl 2 = 2HP, Lvl 3 = 3HP)
+        t.hp = level === 2 ? 2 : level === 3 ? 3 : 1;
+        
+        t.body.immovable = false;
+        t.body.moves = true;
+        
+        // Nadanie wektora prędkości poruszania się hordy w lewą stronę
+        t.setVelocityX(-120);
+        t.setFlipX(true);
+        
+        if (this.anims.exists('troll-run')) {
+            t.play('troll-run', true);
+        }
+        
+        console.log('Spawned troll, hp:', t.hp);
+        this.trollsSpawned++;
+    }
+
+    hitTroll(bullet, troll) {
+        bullet.destroy();
+        if (!troll.active) return;
+
+        troll.hp--;
+        troll.setTint(0xff5555);
+        this.time.delayedCall(100, () => { if (troll.active) troll.clearTint(); });
+
+        // Schowanie ciała i zwrot do puli pamięci podręcznej przy śmierci
+        if (troll.hp <= 0) {
+            troll.disableBody(true, true);
+            this.trollsLeft--;
+            this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+            
+            if (this.trollsLeft <= 0) {
+                this.checkVictory();
+            }
+        } else {
+            troll.setVelocityX(-200);
+            this.time.delayedCall(200, () => {
+                if (troll && troll.active && troll.body) troll.setVelocityX(-120);
+            });
+        }
+    }
+
+    shoot() {
+        if (this.shootCooldown || !this.hero || !this.hero.active) return;
+        this.shootCooldown = true;
+
+        let bullet = this.bullets.create(this.hero.x + 30, this.hero.y - 50, 'hpower2');
+        if (bullet) {
+            bullet.setDisplaySize(40, 40);
+            bullet.body.setSize(30, 30);
+            bullet.setVelocityX(600);
+        }
+
+        this.time.delayedCall(350, () => this.shootCooldown = false);
+    }
+
+    usePower() {
+        this.powerCooldown = true;
+        
+        this.trolls.children.iterate(t => { 
+            if (t && t.active && t.body) {
+                t.setVelocityX(-300); 
+            }
+        });
+
+        this.time.delayedCall(2000, () => {
+            this.powerCooldown = false;
+        });
+    }
+
+    playerHit() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        if (music2 && music2.isPlaying) music2.stop();
+        this.scene.start("GameOverScene");
+    }
+
+    checkVictory() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        if (this.levelIndex < LEVELS.length - 1) {
             this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
         } else {
             this.scene.start("WinScene");
@@ -312,22 +602,33 @@ class GameScene extends Phaser.Scene {
 
     update() {
         if (!this.hero || !this.hero.body) return;
+        
+        let moving = false;
         this.hero.setVelocity(0);
 
         if (this.sound.context && this.sound.context.state === 'suspended') {
             this.sound.context.resume();
         }
 
+        // Ruch horyzontalny gracza
         if (this.cursors.left.isDown) { 
             this.hero.setVelocityX(-280); 
+            moving = true;
         } else if (this.cursors.right.isDown) { 
             this.hero.setVelocityX(280); 
+            moving = true;
         }
         
-        if (this.cursors.up.isDown) this.hero.setVelocityY(-280);
-        else if (this.cursors.down.isDown) this.hero.setVelocityY(280);
+        // Ruch wertykalny gracza
+        if (this.cursors.up.isDown) {
+            this.hero.setVelocityY(-280);
+            moving = true;
+        } else if (this.cursors.down.isDown) {
+            this.hero.setVelocityY(280);
+            moving = true;
+        }
 
-        // Reakcja na klawisze K i L
+        // Obsługa strzału (K) oraz tarczy (L)
         if (Phaser.Input.Keyboard.JustDown(this.keys.shoot)) { 
             this.shoot(); 
         }
@@ -335,12 +636,21 @@ class GameScene extends Phaser.Scene {
             this.usePower(); 
         }
 
-        // ✔️ UPDATE I STABILIZACJA RUCHU TROLLI
+        // ✅ NAPRAWIONO STANY ANIMACJI: Jeśli bohater idzie – biega płynnie. Jeśli stoi – zatrzymuje się na klatce 0.
+        if (moving) {
+            if (this.anims.exists('hero-run') && !this.hero.anims.isPlaying) {
+                this.hero.play('hero-run');
+            }
+        } else {
+            this.hero.anims.stop();
+            this.hero.setFrame(0); // Czysta i stabilna stojąca klatka bez zapętlania w miejscu
+        }
+
+        // Wymuszanie stałej prędkości poruszania się hordy
         this.trolls.children.iterate(t => {
             if (!t || !t.active || !t.body) return;
             if (Math.abs(t.body.velocity.x) < 1) {
                 t.setVelocityX(-120);
-                console.log('Forced velocity for troll');
             }
             if (t.x < -100) {
                 t.disableBody(true, true);
