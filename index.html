@@ -40,8 +40,8 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // ✅ NAPRAWIONO: Ładowanie spritesheet o wymiarach klatki 200x200px (eliminuje błędy w konsoli i odblokowuje ruch hordy)
-        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
+        // Ładowanie obrazu bazowego bohatera
+        this.load.image('hero_raw', 'assets/bh1run.png');
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
         this.load.image('tb1', 'assets/tb1.png');
@@ -62,7 +62,14 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Prawidłowe i bezbłędne przypisanie klatek z siatki 5x5 do animacji gracza
+        // ✅ NAPRAWIONO UKŁAD SIATKI: Podział na 6 kolumn i 5 rzędów dopasowany do Twojego pliku bh1run
+        let texture = this.textures.get('hero_raw').getSourceImage();
+        let w = texture.width / 6;
+        let h = texture.height / 5;
+
+        this.textures.addSpriteSheet('hero_sheet', texture, { frameWidth: w, frameHeight: h });
+
+        // Definicje animacji dopasowane do klatek z pliku
         this.anims.create({ 
             key: 'run',  
             frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
@@ -163,15 +170,15 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // ✅ NAPRAWIONO POZYCJĘ: Obniżono postać na Y=480 z wycentrowanym origin, głowa i kapelusz są w pełni widoczne
+        // ✅ NAPRAWIONO POZYCJĘ: Obniżono postać na osi Y do 480 i ustawiono origin na środek (głowa nie jest ucięta)
         this.player = this.physics.add.sprite(200, 480, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9); 
         this.player.setOrigin(0.5, 0.5);
         
-        // Stabilny hitbox obejmujący sylwetkę wewnątrz klatki 200x200
-        this.player.body.setSize(80, 150);
-        this.player.body.setOffset(60, 25);
+        // Dynamiczne dopasowanie stabilnego pola hitboxa gracza
+        this.player.body.setSize(this.player.width * 0.45, this.player.height * 0.75);
+        this.player.body.setOffset(this.player.width * 0.28, this.player.height * 0.15);
         
         try { this.player.play('idle'); } catch (err) {}
 
@@ -190,7 +197,7 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Układ kolizji silnika Arcade
+        // Układ kolizji fizyki Arcade
         this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
 
@@ -205,15 +212,15 @@ class GameScene extends Phaser.Scene {
         
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         
-        // Pasmo wysokości ruchu hordy
+        // Korytarz wysokości spawnu trolli w oknie planszy
         let spawnY = Phaser.Math.Between(260, 540);
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            // Wielkość trolla dostosowana odpowiednio do gracza
+            // Skala trolli dopasowana prawidłowo i proporcjonalnie do gracza
             troll.setScale(0.35);
             
-            // Hitbox pokrywa całe ciało trolla (strzały ranią wroga przy uderzeniu w dowolne miejsce)
+            // Hitbox trolla pokrywa całe ciało – strzały ranią go przy zderzeniu z dowolnym punktem grafiki
             troll.body.setSize(troll.width, troll.height);
             troll.body.setOffset(0, 0);
             
@@ -227,7 +234,7 @@ class GameScene extends Phaser.Scene {
             // Przypisanie HP trollom zależnie od poziomu
             troll.hp = this.levelIndex + 1;
 
-            // ✅ RUCH HORDRY: Trole prawidłowo przemieszczają się w lewą stronę na każdym poziomie
+            // ✅ RUCH ODBLOKOWANY: Trole natychmiast po spawnie ruszają i przemieszczają się w lewo!
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -359,7 +366,7 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Delikatny krok sinusoidalny wewnątrz okna gry
+                // Lekki ruch falowy wewnątrz okna gry
                 troll.y += Math.sin(this.time.now / 100) * 0.3;
 
                 if (troll.type.startsWith('tm')) {
