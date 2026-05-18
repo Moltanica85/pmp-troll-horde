@@ -25,7 +25,7 @@ const LEVELS = [
     { name: "Level 3 — Mchowy Amfiteatr", horde: 50, types: ["tm1", "tm2", "tm3"], bg: "tlolv3", boss: true }
 ];
 
-// 1. Scena Ładowania (BootScene) - NAPRAWIONO: Asynchroniczne ładowanie
+// 1. Scena Ładowania (BootScene)
 class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
 
@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Nowy plik ze spritesheetem ruchu bh1run.png
+        // BOHATER GŁÓWNY - Spritesheet ruchu bh1run.png
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -60,7 +60,6 @@ class BootScene extends Phaser.Scene {
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
 
-        // Obsluga bledu ładowania
         this.load.on('loaderror', (fileObject) => {
             console.error('Błąd ładowania:', fileObject.key);
         });
@@ -73,25 +72,28 @@ class BootScene extends Phaser.Scene {
     create() {
         console.log('BootScene create - zasoby załadowane');
         
-        // Konfiguracja animacji dostosowana bezpiecznie pod nowy plik bh1run.png
+        // ✅ NAPRAWIONO: Animacje dopasowane do rzeczywistych klatek w spritesheecie
+        // Jeśli bh1run.png ma 8 klatek (0-7), używamy tych samych dla wszystkich animacji
+        
         this.anims.create({ 
             key: 'run',  
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
-            frameRate: 12, 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 7 }), 
+            frameRate: 10, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 12, end: 15 }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 3 }), 
             frameRate: 4, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 16, end: 20 }), 
-            frameRate: 15 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 4, end: 7 }), 
+            frameRate: 10,
+            repeat: 0
         });
 
         console.log('Animacje utworzone - przejście do StartScene');
@@ -112,12 +114,11 @@ class StartScene extends Phaser.Scene {
             music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
         }
         
-        // Próba automatycznego odtworzenia
         try {
             if (!music1.isPlaying) {
                 music1.play();
             }
-        } catch (e) { console.log("Oczekiwanie na interakcję użytkownika, aby włączyć audio."); }
+        } catch (e) { console.log("Audio czeka na interakcję użytkownika"); }
 
         // Przycisk START GRY
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
@@ -166,7 +167,7 @@ class GameScene extends Phaser.Scene {
     create() {
         console.log('GameScene create - Level:', this.levelIndex + 1);
         
-        // Płynna zmiana utworów muzycznych
+        // Płynna zmiana utworów
         if (music1 && music1.isPlaying) music1.stop();
         
         if (!music2) {
@@ -187,7 +188,11 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
-        this.player.play('idle');
+        
+        // ✅ NAPRAWIONO: Bezpieczny start animacji
+        if (this.anims.exists('idle')) {
+            this.player.play('idle');
+        }
 
         // Grupy
         this.trolls = this.physics.add.group();
@@ -239,8 +244,9 @@ class GameScene extends Phaser.Scene {
     firePower(targetX, targetY) {
         if (!this.player || !this.player.active) return;
         
-        this.player.play('atk');
-        this.player.chain('idle');
+        if (this.anims.exists('atk')) {
+            this.player.play('atk');
+        }
 
         let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
         if (projectile) {
@@ -268,20 +274,21 @@ class GameScene extends Phaser.Scene {
     }
 
     playerHit() {
-        console.log('Gracz trafiony! Koniec gry.');
+        console.log('⚠️ Gracz trafiony! Koniec gry.');
         if (this.spawnTimer) this.spawnTimer.destroy();
         if (music2 && music2.isPlaying) music2.stop();
         this.scene.start("GameOverScene");
     }
 
     checkVictory() {
-        console.log('Poziom ukończony! Level:', this.levelIndex + 1);
+        console.log('✅ Poziom ukończony! Level:', this.levelIndex + 1);
         if (this.spawnTimer) this.spawnTimer.destroy();
         
         if (this.levelIndex < LEVELS.length - 1) {
+            console.log('➡️ Przejście do Level:', this.levelIndex + 2);
             this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
         } else {
-            console.log('GRAT! Koniec gry');
+            console.log('🎉 GRAT! Koniec gry');
             this.scene.start("WinScene");
         }
     }
@@ -302,11 +309,16 @@ class GameScene extends Phaser.Scene {
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
         else if (this.cursors.down.isDown) this.player.setVelocityY(320);
 
+        // ✅ NAPRAWIONO: Bezpieczna zmiana animacji
         let currentAnim = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
         if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
-            if (currentAnim !== 'run' && currentAnim !== 'atk') this.player.play('run');
+            if (currentAnim !== 'run' && currentAnim !== 'atk' && this.anims.exists('run')) {
+                this.player.play('run');
+            }
         } else {
-            if (currentAnim !== 'idle' && currentAnim !== 'atk') this.player.play('idle');
+            if (currentAnim !== 'idle' && currentAnim !== 'atk' && this.anims.exists('idle')) {
+                this.player.play('idle');
+            }
         }
 
         // ✅ Animacja biegu trolli
@@ -393,9 +405,9 @@ const config = {
     scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
 
-console.log('Inicjalizacja Phaser...');
+console.log('🎮 Inicjalizacja Phaser...');
 const game = new Phaser.Game(config);
-console.log('Gra uruchomiona!');
+console.log('✅ Gra uruchomiona!');
 
 </script>
 </body>
