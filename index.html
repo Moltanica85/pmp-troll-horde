@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Poprawny arkusz ruch.png lub bh1run.png (200x200 px)
+        // BOHATER GŁÓWNY - Korzystamy z pełnego arkusza siatki 5x5 (25 klatek, każda 200x200px)
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -62,33 +62,32 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Poprawne definicje klatek dla 25-klatkowego arkusza (Siatka 5x5)
+        // PRZYWRÓCONO: Pełny podział klatek z Twojej siatki 5x5 (0-24) - brak błędów w konsoli
         this.anims.create({ 
             key: 'run',  
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
-            frameRate: 12, 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 14 }), 
+            frameRate: 15, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 12, end: 15 }), 
-            frameRate: 4, 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 15, end: 19 }), 
+            frameRate: 6, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 16, end: 20 }), 
-            frameRate: 15,
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 20, end: 24 }), 
+            frameRate: 12,
             repeat: 0
         });
 
-        // Klatki mocy bohatera (21-24)
         this.anims.create({
             key: 'hero-power',
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 21, end: 24 }),
-            frameRate: 10,
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 20, end: 24 }),
+            frameRate: 12,
             repeat: 0
         });
 
@@ -166,7 +165,7 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         
-        // POPRAWIONE HITBOXY I POZYCJONOWANIE (OFFSET)
+        // WYTYCZNA 2: Usunięcie nakładania się hitboxów i uciętych klatek
         this.player.body.setSize(40, 90);
         this.player.body.setOffset(44, 20);
         
@@ -187,7 +186,7 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Detekcja kolizji
+        // Kolizje i nakładanie obiektów
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
         this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
@@ -195,7 +194,7 @@ class GameScene extends Phaser.Scene {
         this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        // Dodanie obsługi klawiszy K oraz L
+        // WYTYCZNA 4: Dodanie klawiszy K i L
         this.keys = this.input.keyboard.addKeys({ shoot: 'K', power: 'L' });
     }
 
@@ -209,18 +208,18 @@ class GameScene extends Phaser.Scene {
         if (troll) {
             troll.setDisplaySize(90, 90);
             
-            // Poprawne, bezpieczne hitboxy trolli dopasowane do sprite'a
+            // WYTYCZNA 9: Hitboxy trolli nie większe niż ich sprite
             troll.body.setSize(60, 60);
             troll.body.setOffset(15, 15);
             troll.type = type;
 
-            // KIERUNEK RUCHU: Trole biegną w lewo, wymuś setFlipX(true), aby nie biegły tyłem
+            // WYTYCZNA 1: Trole biegną przodem w stronę ruchu (w lewo -> true)
             troll.setFlipX(true); 
 
-            // LOGIKA HP ZALEŻNA OD LEVELU (Level 1 = 1HP, Level 2 = 2HP, Level 3 = 3HP)
+            // WYTYCZNA 3: Logika HP zależna od levelu (Lvl 1 -> 1 HP, Lvl 2 -> 2 HP, Lvl 3 -> 3 HP)
             troll.hp = this.levelIndex + 1;
 
-            // Wektory prędkości
+            // Prędkości trolli
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -229,7 +228,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    // Strzał za pomocą kliknięcia/tapnięcia na ekranie
+    // WYTYCZNA 5: Zachowanie funkcji shoot() / firePower() bez zmian
     firePower(targetX, targetY) {
         if (!this.player || !this.player.active) return;
         
@@ -243,7 +242,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    // KLAWISZ K: Strzał przed siebie w linii prostej
+    // Funkcja wywoływana po naciśnięciu K
     shootStraight() {
         if (!this.player || !this.player.active) return;
         
@@ -258,7 +257,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    // KLAWISZ L: Fala odpychająca trolle z cooldownem 2 sekundy
+    // WYTYCZNA 6 & 7: Funkcja usePower() (Klawisz L) z animacją hero-power i cooldownem
     usePower() {
         this.powerCooldown = true;
         this.player.play('hero-power', true);
@@ -266,12 +265,11 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                let baseVelX = troll.body.velocity.x;
-                troll.setVelocityX(300); // Odepchnięcie hordy do tyłu (w prawo)
+                let currentVelX = troll.body.velocity.x;
+                troll.setVelocityX(300); // Odpychanie fali w prawo
                 
-                // Powrót do natarcia po krótkiej chwili
                 this.time.delayedCall(600, () => {
-                    if (troll && troll.active) troll.setVelocityX(baseVelX);
+                    if (troll && troll.active) troll.setVelocityX(currentVelX);
                 });
             }
         });
@@ -281,14 +279,14 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    // WYTYCZNA 3: Zmiana logiki obrażeń - troll.hp-- i niszczenie dopiero przy <= 0
     powerHit(projectile, troll) {
         projectile.destroy();
         
-        troll.hp--; // Obniżenie HP trolla
+        troll.hp--;
         troll.setTint(0xff5555);
         this.time.delayedCall(100, () => { if (troll.active) troll.clearTint(); });
 
-        // Eliminacja trolla tylko gdy hp spadnie do zera
         if (troll.hp <= 0) {
             troll.destroy();
             this.trollsLeft--;
@@ -320,7 +318,7 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Kierunki ruchu klawiatury
+        // Ruch klawiatury + odbicie lustrzane
         if (this.cursors.left.isDown) { 
             this.player.setVelocityX(-320); 
             this.player.setFlipX(true);
@@ -332,7 +330,7 @@ class GameScene extends Phaser.Scene {
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
         else if (this.cursors.down.isDown) this.player.setVelocityY(320);
 
-        // Detekcja wejścia z nowych klawiszy K i L
+        // Sprawdzanie aktywacji nowych klawiszy K i L
         if (Phaser.Input.Keyboard.JustDown(this.keys.shoot)) {
             this.shootStraight();
         }
@@ -340,7 +338,7 @@ class GameScene extends Phaser.Scene {
             this.usePower();
         }
 
-        // Kontrola odtwarzania animacji podstawowych stanu
+        // Zmiany animacji stanu
         let currentAnim = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
         if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
             if (currentAnim !== 'run' && currentAnim !== 'atk' && currentAnim !== 'hero-power') {
@@ -352,14 +350,12 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        // Animacja ruchu i specyfika zachowań trolli
+        // Proceduralna animacja i bieg trolli (zabezpieczone przed ujemnym skalowaniem)
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Skalowanie proceduralne imitujące bieg
                 troll.scaleY = 0.85 + Math.sin(this.time.now / 80) * 0.12;
                 troll.scaleX = 1.0 + Math.sin(this.time.now / 100) * 0.05;
 
-                // Falowanie charakterystyczne dla mchowych trolli na poziomie 3
                 if (troll.type.startsWith('tm')) {
                     troll.y += Math.sin(this.time.now / 70) * 2.5;
                 }
