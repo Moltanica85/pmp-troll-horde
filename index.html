@@ -108,23 +108,24 @@ class StartScene extends Phaser.Scene {
     create() {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
-        if (!music1) {
-            music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
-        }
-        
-        try {
-            if (!music1.isPlaying) music1.play();
-        } catch (e) {}
-
         // Przycisk START GRY
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
         this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
+            
+            // ✅ Bezpieczne włączenie dźwięku menu dopiero po geście użytkownika (brak błędów w konsoli)
             if (this.sound.context && this.sound.context.state === 'suspended') {
                 this.sound.context.resume();
             }
+            if (!music1) {
+                music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
+            }
+            if (!music1.isPlaying) {
+                music1.play();
+            }
+            
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -169,7 +170,7 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // ✅ NAPRAWIONO: Bohater odzyskuje właściwą skalę (0.9), nie jest już mikrusem!
+        // Bohater
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9); 
@@ -197,7 +198,7 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // ✅ NAPRAWIONO: Collider zamiast overlap blokuje przenikanie pocisków przez trolle
+        // Układ kolizji
         this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
 
@@ -211,16 +212,23 @@ class GameScene extends Phaser.Scene {
         if (this.trollsSpawned >= this.levelData.horde) return;
         
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
-        let spawnY = Phaser.Math.Between(220, 640);
+        
+        // ✅ NAPRAWIONO: Zawężony zakres osi Y spawnu, aby trolle nie uciekały poza dół/górę ekranu
+        let spawnY = Phaser.Math.Between(250, 580);
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            // ✅ NAPRAWIONO: Zmniejszono trolle o połowę (0.45) – teraz są idealnie mniejsze od gracza
-            troll.setScale(0.45);
+            // ✅ NAPRAWIONO: Zmniejszono trolle na 0.35, by były mniejsze i idealnie pasowały proporcjami
+            troll.setScale(0.35);
             
-            // ✅ NAPRAWIONO HITBOXY: Dokładna siatka kolizji dla mniejszych trolli, strzały już nie przelatują!
-            troll.body.setSize(120, 120);
-            troll.body.setOffset(20, 20);
+            // ✅ NAPRAWIONO HITBOX: Rozszerzony na całe ciało trolla (koniec z wymogiem celowania tylko w głowę)
+            troll.body.setSize(troll.width, troll.height);
+            troll.body.setOffset(0, 0);
+            
+            // ✅ NAPRAWIONO: Wymuszenie granic świata, aby ruch sinusoidalny nie spychał ich poza ekran
+            troll.setCollideWorldBounds(true);
+            troll.body.onWorldBounds = true;
+            
             troll.type = type;
 
             // Trole biegną przodem w stronę gracza
@@ -288,7 +296,6 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // ✅ NAPRAWIONO LOGIKĘ TRAFIEŃ: Pocisk znika, troll dostaje tint i traci HP. Przy <=0 ginie.
     powerHit(projectile, troll) {
         projectile.destroy();
         
@@ -327,11 +334,6 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Uciszenie ostrzeżeń audio przy interakcji z klawiaturą
-        if (this.sound.context && this.sound.context.state === 'suspended') {
-            this.sound.context.resume();
-        }
-
         if (this.cursors.left.isDown) { 
             this.player.setVelocityX(-320); 
             this.player.setFlipX(true);
@@ -363,11 +365,11 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Proceduralne bujanie trolli w biegu
-                troll.y += Math.sin(this.time.now / 100) * 0.4;
+                // Lekki, kontrolowany ruch falowy wewnątrz okna gry
+                troll.y += Math.sin(this.time.now / 100) * 0.3;
 
                 if (troll.type.startsWith('tm')) {
-                    troll.y += Math.sin(this.time.now / 70) * 2.0;
+                    troll.y += Math.sin(this.time.now / 70) * 1.5;
                 }
 
                 if (troll.x < -60) this.playerHit();
