@@ -13,6 +13,7 @@
 <body>
 <script>
 
+// Globalne zmienne stanu gry
 let globalVolume = 0.3;
 
 const LEVELS = [
@@ -69,40 +70,60 @@ class BootScene extends Phaser.Scene {
     }
 }
 
-// 2. Menu Główne (StartScene) - BEZPIECZNE AUDIO
+// 2. Menu Główne (StartScene) - PRZYWRÓCONO SUWAK I POPRAWIONO START
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
 
     create() {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
-        // Przycisk jako duża warstwa interaktywna
-        let btnArea = this.add.rectangle(640, 450, 350, 90, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
-        let btnText = this.add.text(640, 450, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        // Uruchomienie muzyki z menu (track1) przy interakcji użytkownika
+        try {
+            if (!this.sound.get('track1')) {
+                this.sound.play('track1', { loop: true, volume: globalVolume });
+            }
+        } catch (e) { console.log("Audio autoplay restriction handled."); }
 
-        // Wybór i start zsynchronizowany z interakcją dotykową
+        // Przycisk START GRY
+        let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
+        this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+
         btnArea.on('pointerdown', () => {
-            btnArea.disableInteractive(); // Zabezpieczenie przed wielokrotnym kliknięciem
-            
+            btnArea.disableInteractive();
             try {
-                // Odpalenie muzyki DOPIERO TUTAJ - omija blokadę Android/iOS
-                if (!this.sound.get('track1')) {
+                if (!this.sound.get('track1').isPlaying) {
                     this.sound.play('track1', { loop: true, volume: globalVolume });
                 }
-            } catch (e) { console.error("Audio trigger crash bypassed"); }
+            } catch (e) {}
             
-            // Natychmiastowe wyczyszczenie i przejście do bitwy (bez ekranu wyboru)
-            this.scene.start("GameScene");
+            // Przejście bezpieczne z przekazaniem poprawnego poziomu startowego
+            this.scene.start("GameScene", { levelIndex: 0 });
+        });
+
+        // --- PRZYWRÓCONY SUWAK GŁOŚNOŚCI ---
+        this.add.text(640, 540, "GŁOŚNOŚĆ", { fontSize: '20px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
+        this.add.rectangle(640, 580, 200, 10, 0x333333); // Tło paska
+        let handle = this.add.circle(540 + (globalVolume * 200), 580, 15, 0xffffff).setInteractive({ useHandCursor: true });
+        
+        this.input.setDraggable(handle);
+        this.input.on('drag', (pointer, gameObject, dragX) => {
+            dragX = Phaser.Math.Clamp(dragX, 540, 740);
+            gameObject.x = dragX;
+            globalVolume = (dragX - 540) / 200;
+            this.sound.setVolume(globalVolume);
         });
     }
 }
 
-// 3. Scena Rozgrywki (GameScene)
+// 3. Scena Rozgrywki (GameScene) - POPRAWIONA LOGIKA POZIOMÓW
 class GameScene extends Phaser.Scene {
-    constructor() { super("GameScene"); }
+    constructor() { 
+        super("GameScene"); 
+    }
 
-    init() {
-        this.levelIndex = 0;
+    init(data) {
+        // Naprawiony błąd przypisywania sceny: dynamicznie czyta dane wejściowe
+        this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
         this.levelData = LEVELS[this.levelIndex];
     }
 
@@ -112,22 +133,24 @@ class GameScene extends Phaser.Scene {
             if (!this.sound.get('track2')) this.sound.play('track2', { loop: true, volume: globalVolume });
         } catch (e) {}
 
+        // Renderowanie tła poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // Tworzenie Rysieka na bazie poprawnego arkusza ruch.png
+        // Gracz (Bohater 1)
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
         this.player.play('idle');
 
+        // Grupy fizyczne pocisków i hordy
         this.trolls = this.physics.add.group();
         this.powers = this.physics.add.group();
 
         this.trollsLeft = this.levelData.horde;
         this.trollsSpawned = 0;
         
-        this.uiText = this.add.text(30, 30, `${this.levelData.name}\nTrole: ${this.trollsLeft}`, { 
+        this.uiText = this.add.text(30, 30, `${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`, { 
             fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
         });
 
@@ -184,15 +207,29 @@ class GameScene extends Phaser.Scene {
             onComplete: () => {
                 troll.destroy();
                 this.trollsLeft--;
-                this.uiText.setText(`${this.levelData.name}\nTrole: ${this.trollsLeft}`);
-                if (this.trollsLeft <= 0) this.scene.start("WinScene");
+                this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+                
+                if (this.trollsLeft <= 0) {
+                    this.checkVictory();
+                }
             }
         });
     }
 
     playerHit() {
         if (this.spawnTimer) this.spawnTimer.destroy();
-        this.scene.start("GameOverScene");
+        this.scene.start("GameOverScene", { levelIndex: this.levelIndex });
+    }
+
+    checkVictory() {
+        if (this.spawnTimer) this.spawnTimer.destroy();
+        
+        // Przejście do kolejnego poziomu, jeśli istnieje
+        if (this.levelIndex < LEVELS.length - 1) {
+            this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
+        } else {
+            this.scene.start("WinScene");
+        }
     }
 
     update() {
@@ -221,22 +258,30 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-class GameOverScene extends Phaser.Scene { constructor() { super("GameOverScene"); } create() {
-    if (this.sound.get('track2')) this.sound.stop('track2');
-    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
-    this.add.text(640, 360, "GAME OVER\nKliknij, aby spróbować ponownie", { align: 'center', fontSize: '38px', fill: '#ff5555' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("GameScene"));
-}}
+// Sceny końcowe z obsługą restartu konkretnego poziomu
+class GameOverScene extends Phaser.Scene { 
+    constructor() { super("GameOverScene"); } 
+    init(data) { this.levelIndex = data.levelIndex || 0; }
+    create() {
+        if (this.sound.get('track2')) this.sound.stop('track2');
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
+        this.add.text(640, 360, "GAME OVER\nKliknij, aby ponowić", { align: 'center', fontSize: '40px', fill: '#ff5555' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("GameScene", { levelIndex: this.levelIndex }));
+    }
+}
 
-class WinScene extends Phaser.Scene { constructor() { super("WinScene"); } create() {
-    if (this.sound.get('track2')) this.sound.stop('track2');
-    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
-    this.add.text(640, 360, "WYGRAŁEŚ!\nTwarz ocalała.", { align: 'center', fontSize: '42px', fill: '#55ff55' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("StartScene"));
-}}
+class WinScene extends Phaser.Scene { 
+    constructor() { super("WinScene"); } 
+    create() {
+        if (this.sound.get('track2')) this.sound.stop('track2');
+        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
+        this.add.text(640, 360, "WYGRAŁEŚ!\nTwarz ocalała.", { align: 'center', fontSize: '40px', fill: '#55ff55' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("StartScene"));
+    }
+}
 
 const config = {
     type: Phaser.AUTO,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
-    input: { activePointers: 3 },
+    input: { activePointers: 2 },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
     scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
