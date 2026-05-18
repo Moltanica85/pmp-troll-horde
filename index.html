@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Wersja Mobilna 2D</title>
+    <title>PMP: Horda Troli - Wersja Stabilna 2D</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
@@ -13,7 +13,7 @@
 <body>
 <script>
 
-// Globalne zmiennes stanu gry
+// Globalne zmienne stanu gry
 let globalVolume = 0.3;
 let music1 = null;
 let music2 = null;
@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Spritesheet ruchu bh1run.png (klatki 200x200 px)
+        // BOHATER GŁÓWNY - Poprawny arkusz ruch.png lub bh1run.png (200x200 px)
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -62,32 +62,33 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // NAPRAWIONO: Definicje animacji dopasowane wyłącznie do realnych klatek 0-7 z bh1run.png
+        // Poprawne definicje klatek dla 25-klatkowego arkusza (Siatka 5x5)
         this.anims.create({ 
             key: 'run',  
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 7 }), 
-            frameRate: 10, 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
+            frameRate: 12, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 3 }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 12, end: 15 }), 
             frameRate: 4, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 4, end: 7 }), 
-            frameRate: 12,
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 16, end: 20 }), 
+            frameRate: 15,
             repeat: 0
         });
 
+        // Klatki mocy bohatera (21-24)
         this.anims.create({
             key: 'hero-power',
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 4, end: 7 }),
-            frameRate: 12,
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 21, end: 24 }),
+            frameRate: 10,
             repeat: 0
         });
 
@@ -116,9 +117,6 @@ class StartScene extends Phaser.Scene {
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
-            try {
-                if (music1 && music1.isPlaying) music1.stop();
-            } catch (e) {}
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -160,6 +158,7 @@ class GameScene extends Phaser.Scene {
             if (!music2.isPlaying) music2.play();
         } catch (e) {}
 
+        // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
         // Bohater
@@ -167,7 +166,7 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         
-        // NAPRAWIONO: Dokładne wymiary hitboxów i wycięcie klatek bohatera
+        // POPRAWIONE HITBOXY I POZYCJONOWANIE (OFFSET)
         this.player.body.setSize(40, 90);
         this.player.body.setOffset(44, 20);
         
@@ -188,15 +187,15 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Kolizje i nakładanie obiektów
+        // Detekcja kolizji
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
         this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
-        // Dotyk mobilny i klawiatura
+        // Sterowanie dotykowe i klawiatura
         this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
         this.cursors = this.input.keyboard.createCursorKeys();
 
-        // Dodanie obsługi klawiszy K i L
+        // Dodanie obsługi klawiszy K oraz L
         this.keys = this.input.keyboard.addKeys({ shoot: 'K', power: 'L' });
     }
 
@@ -209,17 +208,19 @@ class GameScene extends Phaser.Scene {
         
         if (troll) {
             troll.setDisplaySize(90, 90);
+            
+            // Poprawne, bezpieczne hitboxy trolli dopasowane do sprite'a
             troll.body.setSize(60, 60);
             troll.body.setOffset(15, 15);
             troll.type = type;
 
-            // NAPRAWIONO: Trole biegną przodem do gracza (w lewo = flipX true)
+            // KIERUNEK RUCHU: Trole biegną w lewo, wymuś setFlipX(true), aby nie biegły tyłem
             troll.setFlipX(true); 
 
-            // NAPRAWIONO: HP zależne od numeru poziomu (Lvl 1 = 1HP, Lvl 2 = 2HP, Lvl 3 = 3HP)
+            // LOGIKA HP ZALEŻNA OD LEVELU (Level 1 = 1HP, Level 2 = 2HP, Level 3 = 3HP)
             troll.hp = this.levelIndex + 1;
 
-            // Prędkości trolli
+            // Wektory prędkości
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -228,6 +229,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    // Strzał za pomocą kliknięcia/tapnięcia na ekranie
     firePower(targetX, targetY) {
         if (!this.player || !this.player.active) return;
         
@@ -241,21 +243,22 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    // KLAWISZ K: Strzał przed siebie w linii prostej
     shootStraight() {
         if (!this.player || !this.player.active) return;
         
         this.player.play('atk', true);
         this.player.chain('idle');
 
-        let targetX = this.player.flipX ? this.player.x - 200 : this.player.x + 200;
-        let projectile = this.powers.create(this.player.x + (this.player.flipX ? -40 : 40), this.player.y, 'hpower2');
+        let directionX = this.player.flipX ? -1 : 1;
+        let projectile = this.powers.create(this.player.x + (directionX * 40), this.player.y, 'hpower2');
         if (projectile) {
             projectile.setDisplaySize(60, 60);
-            this.physics.moveTo(projectile, targetX, this.player.y, 550);
+            projectile.setVelocityX(directionX * 550);
         }
     }
 
-    // Nowa funkcja fali odpychającej (Klawisz L)
+    // KLAWISZ L: Fala odpychająca trolle z cooldownem 2 sekundy
     usePower() {
         this.powerCooldown = true;
         this.player.play('hero-power', true);
@@ -263,11 +266,12 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                let currentVelX = troll.body.velocity.x;
-                troll.setVelocityX(250); // Odepchnięcie w prawo
+                let baseVelX = troll.body.velocity.x;
+                troll.setVelocityX(300); // Odepchnięcie hordy do tyłu (w prawo)
                 
+                // Powrót do natarcia po krótkiej chwili
                 this.time.delayedCall(600, () => {
-                    if (troll && troll.active) troll.setVelocityX(currentVelX);
+                    if (troll && troll.active) troll.setVelocityX(baseVelX);
                 });
             }
         });
@@ -277,14 +281,14 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // NAPRAWIONO: Usunięto wadliwy kod crashujący konsolę (zmieniono na czystą logikę niszczenia)
     powerHit(projectile, troll) {
         projectile.destroy();
         
-        troll.hp--;
+        troll.hp--; // Obniżenie HP trolla
         troll.setTint(0xff5555);
         this.time.delayedCall(100, () => { if (troll.active) troll.clearTint(); });
 
+        // Eliminacja trolla tylko gdy hp spadnie do zera
         if (troll.hp <= 0) {
             troll.destroy();
             this.trollsLeft--;
@@ -316,7 +320,7 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Ruch klawiatury
+        // Kierunki ruchu klawiatury
         if (this.cursors.left.isDown) { 
             this.player.setVelocityX(-320); 
             this.player.setFlipX(true);
@@ -328,7 +332,7 @@ class GameScene extends Phaser.Scene {
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
         else if (this.cursors.down.isDown) this.player.setVelocityY(320);
 
-        // Klawisze skrótów K i L
+        // Detekcja wejścia z nowych klawiszy K i L
         if (Phaser.Input.Keyboard.JustDown(this.keys.shoot)) {
             this.shootStraight();
         }
@@ -336,7 +340,7 @@ class GameScene extends Phaser.Scene {
             this.usePower();
         }
 
-        // Zmiany animacji stanu
+        // Kontrola odtwarzania animacji podstawowych stanu
         let currentAnim = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
         if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
             if (currentAnim !== 'run' && currentAnim !== 'atk' && currentAnim !== 'hero-power') {
@@ -348,12 +352,14 @@ class GameScene extends Phaser.Scene {
             }
         }
 
-        // Animacja trolli
+        // Animacja ruchu i specyfika zachowań trolli
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
+                // Skalowanie proceduralne imitujące bieg
                 troll.scaleY = 0.85 + Math.sin(this.time.now / 80) * 0.12;
                 troll.scaleX = 1.0 + Math.sin(this.time.now / 100) * 0.05;
 
+                // Falowanie charakterystyczne dla mchowych trolli na poziomie 3
                 if (troll.type.startsWith('tm')) {
                     troll.y += Math.sin(this.time.now / 70) * 2.5;
                 }
@@ -364,7 +370,7 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-// 4. Ekran Końca Gry - NAPRAWIONO: Pełny powrót do Menu Głównego
+// 4. Ekran Końca Gry (GameOverScene)
 class GameOverScene extends Phaser.Scene { 
     constructor() { super("GameOverScene"); } 
     create() {
@@ -382,7 +388,7 @@ class GameOverScene extends Phaser.Scene {
     }
 }
 
-// 5. Ekran Gratulacji
+// 5. Ekran Gratulacji (WinScene)
 class WinScene extends Phaser.Scene { 
     constructor() { super("WinScene"); } 
     create() {
