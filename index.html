@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Spritesheet ruchu bh1run.png
+        // BOHATER GŁÓWNY - Spritesheet ruchu bh1run.png (automatyczne wyliczanie szerokości/wysokości klatek pod siatkę 5x5)
         this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -59,44 +59,39 @@ class BootScene extends Phaser.Scene {
         // Pliki audio
         this.load.audio('track1', 'assets/muzyka1.mp3');
         this.load.audio('track2', 'assets/muzyka2.mp3');
-
-        this.load.on('loaderror', (fileObject) => {
-            console.error('Błąd ładowania:', fileObject.key);
-        });
-
-        this.load.on('filecomplete', (key) => {
-            console.log('Załadowany:', key);
-        });
     }
 
     create() {
-        console.log('BootScene create - zasoby załadowane');
-        
-        // ✅ NAPRAWIONO: Animacje dopasowane do rzeczywistych klatek w spritesheecie
-        // Jeśli bh1run.png ma 8 klatek (0-7), używamy tych samych dla wszystkich animacji
-        
+        // 1 & 8. POPRAWIONA KOLEJNOŚĆ KLATEK ANIMACJI
         this.anims.create({ 
             key: 'run',  
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 7 }), 
-            frameRate: 10, 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
+            frameRate: 12, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 3 }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 12, end: 15 }), 
             frameRate: 4, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 4, end: 7 }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 16, end: 20 }), 
+            frameRate: 15,
+            repeat: 0
+        });
+
+        // 7. ANIMACJA MOCY BOHATERA (Klatki 21 - 24 na bazie pełnej siatki 25-klatkowej)
+        this.anims.create({
+            key: 'hero-power',
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 21, end: 24 }),
             frameRate: 10,
             repeat: 0
         });
 
-        console.log('Animacje utworzone - przejście do StartScene');
         this.scene.start("StartScene");
     }
 }
@@ -106,10 +101,8 @@ class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
 
     create() {
-        console.log('StartScene create');
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
-        // Bezpieczne tworzenie instancji audio menu
         if (!music1) {
             music1 = this.sound.add('track1', { loop: true, volume: globalVolume });
         }
@@ -118,22 +111,19 @@ class StartScene extends Phaser.Scene {
             if (!music1.isPlaying) {
                 music1.play();
             }
-        } catch (e) { console.log("Audio czeka na interakcję użytkownika"); }
+        } catch (e) {}
 
         // Przycisk START GRY
         let btnArea = this.add.rectangle(640, 400, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
         this.add.text(640, 400, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
 
         btnArea.on('pointerdown', () => {
-            console.log('START GRY kliknięty - przejście do GameScene');
             btnArea.disableInteractive();
-            
             try {
                 if (music1 && music1.isPlaying) {
                     music1.stop();
                 }
             } catch (e) {}
-            
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -161,13 +151,10 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.levelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
         this.levelData = LEVELS[this.levelIndex];
-        console.log('GameScene init - Level:', this.levelIndex + 1);
+        this.powerCooldown = false;
     }
 
     create() {
-        console.log('GameScene create - Level:', this.levelIndex + 1);
-        
-        // Płynna zmiana utworów
         if (music1 && music1.isPlaying) music1.stop();
         
         if (!music2) {
@@ -178,23 +165,22 @@ class GameScene extends Phaser.Scene {
             if (!music2.isPlaying) {
                 music2.play();
             }
-        } catch (e) { console.log('Audio: czekanie na interakcję'); }
+        } catch (e) {}
 
-        // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
         // Bohater
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
-        this.player.body.setSize(90, 150);
         
-        // ✅ NAPRAWIONO: Bezpieczny start animacji
-        if (this.anims.exists('idle')) {
-            this.player.play('idle');
-        }
+        // 2. NAPRAWIONE HITBOXY I PARAMETRY PRZESUNIĘCIA (OFFSET) BOHATERA
+        this.player.body.setSize(40, 90);
+        this.player.body.setOffset(44, 20);
+        
+        this.player.play('idle');
 
-        // Grupy
+        // Grupy fizyczne
         this.trolls = this.physics.add.group();
         this.powers = this.physics.add.group();
 
@@ -205,17 +191,20 @@ class GameScene extends Phaser.Scene {
             fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 
         });
 
-        // Timer pojawiania trolli
         this.spawnTimer = this.time.addEvent({ 
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Kolizje
+        // Detektory fizycznych kolizji
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
         this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
+        // Sterowanie mobilne / myszka
         this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
         this.cursors = this.input.keyboard.createCursorKeys();
+
+        // 4. STEROWANIE - DODANIE OBSŁUGI KLAWISZY K ORAZ L
+        this.keys = this.input.keyboard.addKeys({ shoot: 'K', power: 'L' });
     }
 
     spawnTroll() {
@@ -227,12 +216,20 @@ class GameScene extends Phaser.Scene {
         
         if (troll) {
             troll.setDisplaySize(90, 90);
-            troll.body.setCircle(troll.width / 2.5);
+            
+            // 9. Zabezpieczenie rozmiaru hitboxa trolla przed przekroczeniem rozmiaru sprite'a
+            troll.body.setSize(60, 60);
+            troll.body.setOffset(15, 15);
+            
             troll.type = type;
 
-            // ✅ Trole biegną PRZODEM ku graczowi (bez setFlipX)
+            // 1. ZWROT W STRONĘ RUCHU - Trole biegną w lewo, wymuś setFlipX(true)
+            troll.setFlipX(true); 
 
-            // Prędkości trolli
+            // 3. LOGIKA OBRAŻEŃ - PRZYPISANIE ODPOWIEDNIEGO HP ZALEŻNEGO OD AKTUALNEGO LEVELU
+            troll.hp = this.levelIndex + 1;
+
+            // Bazowe prędkości hordy
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -241,11 +238,13 @@ class GameScene extends Phaser.Scene {
         }
     }
 
+    // 5. STRZAŁ (POZOSTAJE BEZ ZMIAN)
     firePower(targetX, targetY) {
         if (!this.player || !this.player.active) return;
         
-        if (this.anims.exists('atk')) {
-            this.player.play('atk');
+        if (this.player.anims.currentAnim.key !== 'atk') {
+            this.player.play('atk', true);
+            this.player.chain('idle');
         }
 
         let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
@@ -255,40 +254,91 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    powerHit(projectile, troll) {
-        projectile.destroy();
-        this.tweens.add({
-            targets: troll,
-            x: troll.x + 120,
-            duration: 150,
-            onComplete: () => {
-                troll.destroy();
-                this.trollsLeft--;
-                this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+    // Metoda wywoływana przy wciśnięciu klawisza K (Strzał w linii prostej przed siebie)
+    shootStraight() {
+        if (!this.player || !this.player.active) return;
+        
+        this.player.play('atk', true);
+        this.player.chain('idle');
+
+        let targetX = this.player.flipX ? this.player.x - 200 : this.player.x + 200;
+        let projectile = this.powers.create(this.player.x + (this.player.flipX ? -40 : 40), this.player.y, 'hpower2');
+        if (projectile) {
+            projectile.setDisplaySize(60, 60);
+            this.physics.moveTo(projectile, targetX, this.player.y, 550);
+        }
+    }
+
+    // 6. MOC (L) - FALA ODPYCHAJĄCA TROLLE Z COOLDOWNEM
+    usePower() {
+        this.powerCooldown = true;
+        
+        // 7. ANIMACJA MOCY BOHATERA
+        this.player.play('hero-power', true);
+        this.player.chain('idle');
+
+        this.trolls.children.iterate(troll => {
+            if (troll && troll.active) {
+                // Odpychamy trolle do tyłu (w prawo) przy użyciu silnika fizyki wektorowej
+                troll.setVelocityX(250);
                 
-                if (this.trollsLeft <= 0) {
-                    this.checkVictory();
-                }
+                // Przywracamy im ruch w stronę bazy po krótkiej chwili oszołomienia
+                this.time.delayedCall(600, () => {
+                    if (troll && troll.active) {
+                        if (troll.type.startsWith('tb')) troll.setVelocityX(-170);
+                        if (troll.type.startsWith('tk')) troll.setVelocityX(-110);
+                        if (troll.type.startsWith('tm')) troll.setVelocityX(-220);
+                    }
+                });
             }
+        });
+
+        // Zdjęcie blokady cooldownu po 2 sekundach
+        this.time.delayedCall(2000, () => {
+            this.powerCooldown = false;
         });
     }
 
+    // 3. PO TRAFIENIU ODPINAMY PUNKTY HP ZAMIAST NATYCHMIASTOWEJ DESTRUKCJI
+    powerHit(projectile, troll) {
+        projectile.destroy();
+        
+        troll.hp--; // Odjęcie punktu życia trolla
+        
+        // Zmień kolor trolla na moment, aby zasygnalizować trafienie
+        troll.setTint(0xff5555);
+        this.time.delayedCall(100, () => { if (troll.active) troll.clearTint(); });
+
+        if (troll.hp <= 0) {
+            this.tweens.add({
+                targets: troll,
+                x: troll.x + 60,
+                duration: 100,
+                onComplete: () => {
+                    troll.destroy();
+                    this.trollsLeft--;
+                    this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
+                    
+                    if (this.trollsLeft <= 0) {
+                        this.checkVictory();
+                    }
+                }
+            });
+        }
+    }
+
     playerHit() {
-        console.log('⚠️ Gracz trafiony! Koniec gry.');
         if (this.spawnTimer) this.spawnTimer.destroy();
         if (music2 && music2.isPlaying) music2.stop();
         this.scene.start("GameOverScene");
     }
 
     checkVictory() {
-        console.log('✅ Poziom ukończony! Level:', this.levelIndex + 1);
         if (this.spawnTimer) this.spawnTimer.destroy();
         
         if (this.levelIndex < LEVELS.length - 1) {
-            console.log('➡️ Przejście do Level:', this.levelIndex + 2);
             this.scene.start("GameScene", { levelIndex: this.levelIndex + 1 });
         } else {
-            console.log('🎉 GRAT! Koniec gry');
             this.scene.start("WinScene");
         }
     }
@@ -297,7 +347,7 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Sterowanie bohaterem
+        // Poruszanie się postaci (Klawiatura)
         if (this.cursors.left.isDown) { 
             this.player.setVelocityX(-320); 
             this.player.setFlipX(true);
@@ -309,41 +359,55 @@ class GameScene extends Phaser.Scene {
         if (this.cursors.up.isDown) this.player.setVelocityY(-320);
         else if (this.cursors.down.isDown) this.player.setVelocityY(320);
 
-        // ✅ NAPRAWIONO: Bezpieczna zmiana animacji
+        // 4 & 6. Sprawdzanie aktywacji klawiszy K oraz L z uwzględnieniem cooldownu
+        if (Phaser.Input.Keyboard.JustDown(this.keys.shoot)) {
+            this.shootStraight();
+        }
+        if (this.keys.power.isDown && !this.powerCooldown) {
+            this.usePower();
+        }
+
+        // Dobór animacji bazowej (Bieg vs Odpoczynek)
         let currentAnim = this.player.anims.currentAnim ? this.player.anims.currentAnim.key : '';
         if (this.player.body.velocity.x !== 0 || this.player.body.velocity.y !== 0) {
-            if (currentAnim !== 'run' && currentAnim !== 'atk' && this.anims.exists('run')) {
-                this.player.play('run');
+            if (currentAnim !== 'run' && currentAnim !== 'atk' && currentAnim !== 'hero-power') {
+                this.player.play('run', true);
             }
         } else {
-            if (currentAnim !== 'idle' && currentAnim !== 'atk' && this.anims.exists('idle')) {
-                this.player.play('idle');
+            if (currentAnim !== 'idle' && currentAnim !== 'atk' && currentAnim !== 'hero-power') {
+                this.player.play('idle', true);
             }
         }
 
-        // ✅ Animacja biegu trolli
+        // 1 & 9. Pętla animacji i zachowania hordy trolli
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
+                // Zabezpieczenie flipa kierunku ruchu trolli (idą w lewo -> true)
+                if (troll.body.velocity.x < 0) {
+                    troll.setFlipX(true);
+                } else if (troll.body.velocity.x > 0) {
+                    troll.setFlipX(false);
+                }
+
+                // Płynne organiczne bujanie zamiast skoków klatkowych
                 troll.scaleY = 0.85 + Math.sin(this.time.now / 80) * 0.12;
                 troll.scaleX = 1.0 + Math.sin(this.time.now / 100) * 0.05;
 
-                // Falowanie mchowych trolli (Level 3)
+                // Dodatkowy efekt poruszania się dla typu mchowego (tm) na poziomie 3
                 if (troll.type.startsWith('tm')) {
                     troll.y += Math.sin(this.time.now / 70) * 2.5;
                 }
 
-                // Kolizja - troll dotarł do lewej krawędzi
                 if (troll.x < -60) this.playerHit();
             }
         });
     }
 }
 
-// 4. Ekran Końca Gry
+// 4. Ekran Końca Gry (GameOverScene) — Poprawny powrót do Menu Głównego
 class GameOverScene extends Phaser.Scene { 
     constructor() { super("GameOverScene"); } 
     create() {
-        if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
         this.add.text(640, 300, "KONIEC GRY\nTwoja twarz została skradziona!", { 
             align: 'center', fontSize: '42px', fill: '#ff5555', fontStyle: 'bold', fontFamily: 'Arial' 
@@ -353,17 +417,15 @@ class GameOverScene extends Phaser.Scene {
         this.add.text(640, 460, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
         
         btn.on('pointerdown', () => {
-            console.log('Powrót do menu');
             this.scene.start("StartScene");
         });
     }
 }
 
-// 5. Ekran Gratulacji
+// 5. Ekran Gratulacji (WinScene)
 class WinScene extends Phaser.Scene { 
     constructor() { super("WinScene"); } 
     create() {
-        if (music2 && music2.isPlaying) music2.stop();
         this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
         
         this.add.text(640, 180, "🎉 GRATULACJE! 🎉", { 
@@ -378,25 +440,21 @@ class WinScene extends Phaser.Scene {
             align: 'center', fontSize: '24px', fill: '#55ff55', fontFamily: 'Arial' 
         }).setOrigin(0.5);
         
-        // Przycisk: ZAGRAJ PONOWNIE
         let btnRepeat = this.add.rectangle(640, 440, 320, 70, 0x55ff55).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0xffffff);
         this.add.text(640, 440, "ZAGRAJ PONOWNIE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
         btnRepeat.on('pointerdown', () => {
-            console.log('Restart gry od Level 1');
             this.scene.start("GameScene", { levelIndex: 0 });
         });
         
-        // Przycisk: MENU GŁÓWNE
         let btnMenu = this.add.rectangle(640, 540, 320, 70, 0xffffff).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0x55ff55);
         this.add.text(640, 540, "MENU GŁÓWNE", { fontSize: '24px', fill: '#000', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
         btnMenu.on('pointerdown', () => {
-            console.log('Powrót do menu z WinScene');
             this.scene.start("StartScene");
         });
     }
 }
 
-// Główna konfiguracja
+// Główna konfiguracja uruchomieniowa
 const config = {
     type: Phaser.AUTO,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
@@ -405,9 +463,7 @@ const config = {
     scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
 
-console.log('🎮 Inicjalizacja Phaser...');
 const game = new Phaser.Game(config);
-console.log('✅ Gra uruchomiona!');
 
 </script>
 </body>
