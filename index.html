@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Wersja Mobilna 2D</title>
+    <title>PMP: Horda Troli - Wersja Stabilna 2D</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
@@ -40,7 +40,7 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Ładowanie arkusza siatki z pliku bh1run.png
+        // BOHATER GŁÓWNY - Ładowanie pliku jako tekstura bazowa do nacięcia
         this.load.image('hero_raw', 'assets/bh1run.png');
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
@@ -62,7 +62,7 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Dynamiczne wyliczanie proporcji klatek siatki 5x5
+        // Dynamiczne nacinanie siatki 5x5 z pliku bh1run.png
         let texture = this.textures.get('hero_raw').getSourceImage();
         let w = texture.width / 5;
         let h = texture.height / 5;
@@ -122,11 +122,9 @@ class StartScene extends Phaser.Scene {
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
-            
             if (this.sound.context && this.sound.context.state === 'suspended') {
                 this.sound.context.resume();
             }
-
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -171,12 +169,12 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // Bohater
+        // ✅ NAPRAWIONO: Bohater odzyskuje właściwą skalę (0.9), nie jest już mikrusem!
         this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
-        this.player.setScale(0.5); // Dostosowanie wielkości bohatera do tła walki
+        this.player.setScale(0.9); 
         
-        // Rozmiar hitboxów i przesunięcie (offset) bohatera
+        // Hitboxy bohatera
         this.player.body.setSize(40, 90);
         this.player.body.setOffset(44, 20);
         
@@ -199,8 +197,8 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // ✅ NAPRAWIONO DETEKCJĘ TRAFIEŃ: Przejście na precyzyjny overlap z wymuszeniem rejestracji ciał fizycznych hordy
-        this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
+        // ✅ NAPRAWIONO: Collider zamiast overlap blokuje przenikanie pocisków przez trolle
+        this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
 
         this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
@@ -217,15 +215,15 @@ class GameScene extends Phaser.Scene {
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            // ✅ NAPRAWIONO ROZMIAR TROLLI: Użycie setScale zapewnia, że są równe wzrostem z Twoim bohaterem!
-            troll.setScale(0.55);
+            // ✅ NAPRAWIONO: Zmniejszono trolle o połowę (0.45) – teraz są idealnie mniejsze od gracza
+            troll.setScale(0.45);
             
-            // Dopasowanie hitboxów w dół, aby gra była uczciwa i płynna
-            troll.body.setSize(70, 70);
-            troll.body.setOffset(10, 10);
+            // ✅ NAPRAWIONO HITBOXY: Dokładna siatka kolizji dla mniejszych trolli, strzały już nie przelatują!
+            troll.body.setSize(120, 120);
+            troll.body.setOffset(20, 20);
             troll.type = type;
 
-            // Trole biegną przodem w lewą stronę
+            // Trole biegną przodem w stronę gracza
             troll.setFlipX(true); 
 
             // Przypisanie HP trollom zależnie od poziomu
@@ -246,11 +244,11 @@ class GameScene extends Phaser.Scene {
         try { this.player.play('atk', true); } catch(e){}
         this.player.chain('idle');
 
-        let projectile = this.powers.create(this.player.x + 30, this.player.y, 'hpower2');
+        let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
         if (projectile) {
-            projectile.setDisplaySize(40, 40);
+            projectile.setDisplaySize(60, 60);
             this.physics.moveTo(projectile, targetX, targetY, 600);
-            projectile.body.setSize(30, 30);
+            projectile.body.setSize(40, 40);
         }
     }
 
@@ -261,11 +259,11 @@ class GameScene extends Phaser.Scene {
         this.player.chain('idle');
 
         let directionX = this.player.flipX ? -1 : 1;
-        let projectile = this.powers.create(this.player.x + (directionX * 30), this.player.y, 'hpower2');
+        let projectile = this.powers.create(this.player.x + (directionX * 40), this.player.y, 'hpower2');
         if (projectile) {
-            projectile.setDisplaySize(40, 40);
+            projectile.setDisplaySize(60, 60);
             projectile.setVelocityX(directionX * 600);
-            projectile.body.setSize(30, 30);
+            projectile.body.setSize(40, 40);
         }
     }
 
@@ -290,7 +288,7 @@ class GameScene extends Phaser.Scene {
         });
     }
 
-    // ✅ NAPRAWIONO LOGIKĘ ELIMINACJI TROLLA: Trafienie natychmiast odlicza HP i usuwa wroga
+    // ✅ NAPRAWIONO LOGIKĘ TRAFIEŃ: Pocisk znika, troll dostaje tint i traci HP. Przy <=0 ginie.
     powerHit(projectile, troll) {
         projectile.destroy();
         
@@ -329,7 +327,7 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Bezpieczne wznawianie kontekstu audio przy sterowaniu klawiaturą
+        // Uciszenie ostrzeżeń audio przy interakcji z klawiaturą
         if (this.sound.context && this.sound.context.state === 'suspended') {
             this.sound.context.resume();
         }
@@ -365,7 +363,7 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Efekt lekkiego podskakiwania w biegu bez zniekształceń
+                // Proceduralne bujanie trolli w biegu
                 troll.y += Math.sin(this.time.now / 100) * 0.4;
 
                 if (troll.type.startsWith('tm')) {
