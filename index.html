@@ -40,8 +40,8 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // Ładowanie arkusza jako spritesheet 200x200px
-        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
+        // Ładujemy jako czysty plik obrazu, aby precyzyjnie pociąć siatkę w locie
+        this.load.image('hero_raw', 'assets/bh1run.png');
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
         this.load.image('tb1', 'assets/tb1.png');
@@ -62,43 +62,47 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Sprawdzamy bezpieczną, rzeczywistą ilość klatek załadowanych przez Phaser
-        let realFrames = this.textures.get('hero_sheet').frameTotal;
+        // ✅ NAPRAWIONO CIĘCIE: Wymuszamy sztywne klatki 200x200px – bohater powraca do pełnej, właściwej wielkości klatki!
+        this.textures.addSpriteSheetFromAtlas('hero_sheet', {
+            atlas: 'hero_raw',
+            frameWidth: 200,
+            frameHeight: 200
+        });
 
-        // Pomocnicza funkcja tworząca bezpieczną listę klatek (zastępuje brakujące klatki bezpieczną klatką 0)
-        let getSafeFrames = (start, end) => {
-            let frames = [];
-            for (let i = start; i <= end; i++) {
-                frames.push({ key: 'hero_sheet', frame: (i < realFrames) ? i : 0 });
-            }
-            return frames;
-        };
+        // Pobieramy faktyczną ilość klatek z pociętej tekstury, aby bezpiecznie zbudować animacje bez błędów w konsoli
+        let total = this.textures.get('hero_sheet').frameTotal;
+        let endRun = (total >= 12) ? 11 : total - 1;
+        let startIdle = (total >= 13) ? 12 : 0;
+        let endIdle = (total >= 16) ? 15 : total - 1;
+        let startAtk = (total >= 17) ? 16 : 0;
+        let endAtk = (total >= 21) ? 20 : total - 1;
+        let startPow = (total >= 22) ? 21 : 0;
+        let endPow = (total >= 25) ? 24 : total - 1;
 
-        // ✅ NAPRAWIONO: Bezpieczne generowanie animacji gwarantuje brak błędów w konsoli i przywraca ruch trolli!
         this.anims.create({ 
             key: 'run',  
-            frames: getSafeFrames(0, 11), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: endRun }), 
             frameRate: 12, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: getSafeFrames(12, 15), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: startIdle, end: endIdle }), 
             frameRate: 4, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: getSafeFrames(16, 20), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: startAtk, end: endAtk }), 
             frameRate: 14, 
             repeat: 0 
         });
 
         this.anims.create({ 
             key: 'hero-power', 
-            frames: getSafeFrames(21, 24), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: startPow, end: endPow }), 
             frameRate: 10, 
             repeat: 0 
         });
@@ -175,15 +179,15 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // ✅ NAPRAWIONO POZYCJĘ I HITBOX: Obniżono bohatera na Y=470, głowa i kapelusz są idealnie widoczne i nieucięte
-        this.player = this.physics.add.sprite(200, 470, 'hero_sheet');
+        // ✅ NAPRAWIONO WIZUALIZACJĘ: Bohater na osi Y (450) – głowa i kapelusz są idealnie widoczne, klatka wyświetla tylko jedną postać
+        this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9); 
         this.player.setOrigin(0.5, 0.5);
         
-        // Precyzyjne dopasowanie pola fizycznego do klatki postaci
-        this.player.body.setSize(50, 130);
-        this.player.body.setOffset(75, 35);
+        // Stabilny hitbox dopasowany dokładnie do ramy postaci
+        this.player.body.setSize(60, 140);
+        this.player.body.setOffset(70, 30);
         
         try { this.player.play('idle'); } catch (err) {}
 
@@ -217,18 +221,19 @@ class GameScene extends Phaser.Scene {
         
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         
-        // Bezpieczny korytarz wysokości spawnu trolli wewnątrz tła okna gry
+        // Pasmo wysokości ruchu hordy wewnątrz okna gry
         let spawnY = Phaser.Math.Between(260, 540);
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
+            // Skala trolla dopasowana odpowiednio i proporcjonalnie do gracza
             troll.setScale(0.35);
             
             // Hitbox trolla pokrywa całe ciało
             troll.body.setSize(troll.width, troll.height);
             troll.body.setOffset(0, 0);
             
-            // Ścisła blokada przed uciekaniem poza ekran
+            // Ścisła blokada przed uciekaniem w dół lub w górę poza ekran
             troll.setCollideWorldBounds(true);
             troll.body.onWorldBounds = true;
             
@@ -238,7 +243,7 @@ class GameScene extends Phaser.Scene {
             // Przypisanie HP trollom zależnie od poziomu
             troll.hp = this.levelIndex + 1;
 
-            // ✅ RUCH ODBLOKOWANY: Dzięki wyczyszczeniu błędów animacji, trole natychmiast ruszają i brną na bohatera!
+            // ✅ NAPRAWIONO RUCH HORDRY: Trole natychmiast po spawnowaniu ruszają i brną do przodu na bohatera!
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -370,7 +375,7 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Lekki ruch falowy trolli wewnątrz planszy
+                // Sinusoidalny ruch falowy hordy
                 troll.y += Math.sin(this.time.now / 100) * 0.3;
 
                 if (troll.type.startsWith('tm')) {
