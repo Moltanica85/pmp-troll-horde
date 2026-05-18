@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>PMP: Horda Troli - Mobilny Fix Ostateczny</title>
+    <title>PMP: Horda Troli - Wersja Muzyczna</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
@@ -15,8 +15,8 @@
 
 // Globalne zmienne stanu gry
 let globalVolume = 0.3;
-let selectedHeroStyle = 'normal'; 
 
+// Definicje poziomów
 const LEVELS = [
     { name: "Level 1 — Ścieżka Białego Wejścia", horde: 20, types: ["tb1"], bg: "tlolv1" },
     { name: "Level 2 — Kamienna Przełęcz", horde: 35, types: ["tb1", "tb2"], bg: "tlolv2" },
@@ -28,19 +28,19 @@ class BootScene extends Phaser.Scene {
     constructor() { super("BootScene"); }
 
     preload() {
+        // Tła
         this.load.image('oknoglowne', 'assets/oknoglowne.png');
         this.load.image('tlolv1', 'assets/tlolv1.jpeg');
         this.load.image('tlolv2', 'assets/tlolv2.jpeg');
         this.load.image('tlolv3', 'assets/tlolv3.jpeg');
         
+        // UI, Moce, Postać
+        this.load.image('hero_avatar', 'assets/bohater1.png');
+        this.load.spritesheet('hero_sheet', 'assets/ruch.png', { frameWidth: 200, frameHeight: 200 });
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
-        this.load.image('hero_avatar', 'assets/bohater1.png');
 
-        // Arkusz animacji ruchu (ruch.png)
-        this.load.spritesheet('hero_sheet', 'assets/ruch.png', { frameWidth: 200, frameHeight: 200 });
-
-        // Przeciwnicy
+        // Przeciwnicy (Trole)
         this.load.image('tb1', 'assets/tb1.png');
         this.load.image('tb2', 'assets/tb2.png');
         this.load.image('tb3', 'assets/tb3.png');
@@ -51,6 +51,7 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
+        // Definicje animacji z arkusza ruch.png
         this.anims.create({ 
             key: 'run',  
             frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 14 }), 
@@ -75,72 +76,53 @@ class BootScene extends Phaser.Scene {
     }
 }
 
-// 2. Menu Główne (StartScene)
+// 2. Menu Główne (StartScene) - PRZYWRÓCONO ODTWARZANIE MUZYKI 1
 class StartScene extends Phaser.Scene {
     constructor() { super("StartScene"); }
 
     create() {
         this.add.image(640, 360, 'oknoglowne').setDisplaySize(1280, 720);
 
+        // Uruchomienie muzyki z menu (track1) z obsługą blokad przeglądarek
+        try {
+            if (!this.sound.get('track1')) {
+                this.sound.play('track1', { loop: true, volume: globalVolume });
+            }
+        } catch (e) { console.log("Odtwarzanie audio wymaga interakcji użytkownika."); }
+
         let btnArea = this.add.rectangle(640, 420, 320, 80, 0x000000, 0.8).setInteractive({ useHandCursor: true }).setStrokeStyle(4, 0xffffff);
-        this.add.text(640, 420, "START", { fontSize: '42px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+        this.add.text(640, 420, "START GRY", { fontSize: '42px', fill: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
 
         btnArea.on('pointerdown', () => {
+            // Bezpieczne wymuszenie odtwarzania w razie wcześniejszej blokady przeglądarki
             try {
-                if (!this.sound.get('track1')) {
+                if (!this.sound.get('track1').isPlaying) {
                     this.sound.play('track1', { loop: true, volume: globalVolume });
                 }
             } catch (e) {}
-            this.scene.start("SelectScene");
-        });
-    }
-}
-
-// 3. Ekran Wyboru Postaci (SelectScene) - NAPRAWIONY I ODZABLOKOWANY
-class SelectScene extends Phaser.Scene {
-    constructor() { super("SelectScene"); }
-
-    create() {
-        this.add.rectangle(640, 360, 1280, 720, 0x0a0a0a);
-        this.add.text(640, 100, "WYBIERZ BOHATERA", { fontSize: '46px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
-
-        // KARTA: RYSIEK
-        let rBg = this.add.rectangle(440, 380, 320, 420, 0x1c1c1c).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0xffffff);
-        let rSprite = this.add.image(440, 340, 'hero_avatar').setDisplaySize(220, 260);
-        this.add.text(440, 520, "RYSIEK", { fontSize: '32px', fill: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-
-        rBg.on('pointerdown', () => {
-            selectedHeroStyle = 'normal';
-            this.scene.start("GameScene"); // Uruchomienie bez przekazywania zbędnych obiektów w locie
-        });
-
-        // KARTA: SŁAWEK
-        let sBg = this.add.rectangle(840, 380, 320, 420, 0x1c1c1c).setInteractive({ useHandCursor: true }).setStrokeStyle(3, 0x7bd97b);
-        let sSprite = this.add.image(840, 340, 'hero_avatar').setDisplaySize(220, 260);
-        sSprite.setTint(0x7bd97b);
-        this.add.text(840, 520, "SŁAWEK", { fontSize: '32px', fill: '#7bd97b', fontStyle: 'bold' }).setOrigin(0.5);
-
-        sBg.on('pointerdown', () => {
-            selectedHeroStyle = 'glow';
+            
+            // Przejście bezpośrednio do GameScene
             this.scene.start("GameScene");
         });
     }
 }
 
-// 4. Scena Rozgrywki (GameScene)
+// 3. Scena Rozgrywki (GameScene)
 class GameScene extends Phaser.Scene {
     constructor() { 
         super("GameScene"); 
     }
 
     init() {
-        // Resetowanie parametrów sceny przy każdym uruchomieniu bezpośrednio z poziomów globalnych
         this.levelIndex = 0;
         this.levelData = LEVELS[this.levelIndex];
     }
 
     create() {
+        // Zatrzymujemy muzykę z menu przed startem właściwej walki
         if (this.sound.get('track1')) this.sound.stop('track1');
+        
+        // Włączamy muzykę z poziomu (track2)
         try {
             if (!this.sound.get('track2')) this.sound.play('track2', { loop: true, volume: globalVolume });
         } catch (e) {}
@@ -151,11 +133,6 @@ class GameScene extends Phaser.Scene {
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         this.player.body.setSize(90, 150);
-
-        if (selectedHeroStyle === 'glow') {
-            this.player.setTint(0x7bd97b);
-        }
-
         this.player.play('idle');
 
         this.trolls = this.physics.add.group();
@@ -211,8 +188,7 @@ class GameScene extends Phaser.Scene {
         this.player.play('atk');
         this.player.chain('idle');
 
-        let currentPowerImg = selectedHeroStyle === 'normal' ? 'hpower2' : 'opower1';
-        let projectile = this.powers.create(this.player.x + 40, this.player.y, currentPowerImg);
+        let projectile = this.powers.create(this.player.x + 40, this.player.y, 'hpower2');
         
         if (projectile) {
             projectile.setDisplaySize(60, 60);
@@ -288,50 +264,26 @@ class GameScene extends Phaser.Scene {
     }
 }
 
-// 5. Sceny Końcowe
-class GameOverScene extends Phaser.Scene { 
-    constructor() { super("GameOverScene"); } 
-    create() {
-        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
-        this.add.text(640, 300, "PRZERÓBKA NIEUDANA", { fontSize: '50px', fill: '#ff5555', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        let btn = this.add.rectangle(640, 440, 280, 60, 0xffffff).setInteractive({ useHandCursor: true });
-        this.add.text(640, 440, "PONÓW", { fontSize: '24px', fill: '#000', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        btn.on('pointerdown', () => this.scene.start("GameScene"));
-    }
-}
+// Sceny końcowe
+class GameOverScene extends Phaser.Scene { constructor() { super("GameOverScene"); } create() {
+    if (this.sound.get('track2')) this.sound.stop('track2');
+    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.85);
+    this.add.text(640, 300, "GAME OVER\nKliknij by ponowić", { align: 'center', fontSize: '40px' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("GameScene"));
+}}
 
-class WinScene extends Phaser.Scene { 
-    constructor() { super("WinScene"); } 
-    create() {
-        this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
-        this.add.text(640, 300, "ZWYCIĘSTWO!", { fontSize: '60px', fill: '#55ff55', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        let btn = this.add.rectangle(640, 440, 280, 60, 0xffffff).setInteractive({ useHandCursor: true });
-        this.add.text(640, 440, "POWRÓT", { fontSize: '24px', fill: '#000', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        btn.on('pointerdown', () => this.scene.start("StartScene"));
-    }
-}
+class WinScene extends Phaser.Scene { constructor() { super("WinScene"); } create() {
+    if (this.sound.get('track2')) this.sound.stop('track2');
+    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.9);
+    this.add.text(640, 360, "WYGRAŁEŚ!\nTwarz ocalała.", { align: 'center', fontSize: '40px' }).setOrigin(0.5).setInteractive().on('pointerdown', () => this.scene.start("StartScene"));
+}}
 
-// 6. Konfiguracja główna (W pełni zoptymalizowana pod urządzenia mobilne i dotyk)
+// Konfiguracja i start
 const config = {
     type: Phaser.AUTO,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1280,
-        height: 720
-    },
-    input: {
-        activePointers: 4 // Pełny multitouch dla jednoczesnej obsługi wielu palców
-    },
-    physics: {
-        default: 'arcade',
-        arcade: { gravity: { y: 0 }, debug: false }
-    },
-    scene: [BootScene, StartScene, SelectScene, GameScene, GameOverScene, WinScene]
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 1280, height: 720 },
+    input: { activePointers: 2 },
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+    scene: [BootScene, StartScene, GameScene, GameOverScene, WinScene]
 };
 const game = new Phaser.Game(config);
 
