@@ -62,16 +62,13 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // ✅ DYNAMICZNA POPRAWKA: Pobieramy wymiary pliku bezpośrednio z pamięci cache Phasera
-        // Dzielimy szerokość i wysokość na 5, dzięki czemu niezależnie od rozdzielczości pliku siatka 5x5 natnie się perfekcyjnie!
+        // Dynamiczne wyliczanie proporcji klatek siatki 5x5
         let texture = this.textures.get('hero_raw').getSourceImage();
         let w = texture.width / 5;
         let h = texture.height / 5;
 
-        // Tworzymy właściwy spritesheet z dynamicznie obliczonymi klatkami bez ucinania
         this.textures.addSpriteSheet('hero_sheet', texture, { frameWidth: w, frameHeight: h });
 
-        // Bezpieczne generowanie animacji z dynamicznej tekstury
         this.anims.create({ 
             key: 'run',  
             frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
@@ -125,6 +122,12 @@ class StartScene extends Phaser.Scene {
 
         btnArea.on('pointerdown', () => {
             btnArea.disableInteractive();
+            
+            // ✅ NAPRAWIONO: Wymuszenie aktywacji AudioContext po kliknięciu użytkownika ucisza błędy w konsoli
+            if (this.sound.context && this.sound.context.state === 'suspended') {
+                this.sound.context.resume();
+            }
+
             this.scene.start("GameScene", { levelIndex: 0 });
         });
 
@@ -169,21 +172,20 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // Bohater z dynamicznie i poprawnie pociętej tekstury
+        // Bohater
         this.player = this.physics.add.sprite(200, 450, 'hero_raw');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9);
         
-        // Zastosowanie dokładnych wymiarów hitboxa z listy wytycznych
+        // Rozmiar hitboxów i przesunięcie (offset) bohatera
         this.player.body.setSize(40, 90);
         this.player.body.setOffset(44, 20);
         
-        // Bezpieczne odtworzenie animacji startowej
         try {
             this.player.play('idle');
-        } catch (err) { console.warn("Fallback to static texture framework applied"); }
+        } catch (err) {}
 
-        // Grupy fizyczne
+        // Grupy fizyczne obiektów
         this.trolls = this.physics.add.group();
         this.powers = this.physics.add.group();
 
@@ -198,8 +200,9 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
+        // ✅ NAPRAWIONO KOLEJNOŚĆ I METODĘ: Użycie collider() zamiast overlap() gwarantuje wykrycie trafień pocisków
+        this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
-        this.physics.add.overlap(this.powers, this.trolls, this.powerHit, null, this);
 
         this.input.on('pointerdown', (p) => this.firePower(p.x, p.y));
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -215,17 +218,21 @@ class GameScene extends Phaser.Scene {
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            troll.setDisplaySize(90, 90);
-            troll.body.setSize(60, 60);
-            troll.body.setOffset(15, 15);
+            // ✅ NAPRAWIONO ROZMIAR: Zmniejszono trole z (90,90) na (55,55) by pasowały idealnie do skali gracza
+            troll.setDisplaySize(55, 55);
+            
+            // Dopasowanie hitboxa trolla do jego nowego, mniejszego ciała
+            troll.body.setSize(40, 40);
+            troll.body.setOffset(7, 7);
             troll.type = type;
 
-            // Trole biegną w lewo ku graczowi - wymuszone lustrzane odbicie przodem
+            // Trole biegną przodem w lewą stronę
             troll.setFlipX(true); 
 
-            // Punkty życia zależne od poziomu
+            // Przypisanie HP trollom zależnie od poziomu (Lvl 1 = 1HP, Lvl 2 = 2HP, Lvl 3 = 3HP)
             troll.hp = this.levelIndex + 1;
 
+            // Prędkości natarcia hordy
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -244,6 +251,7 @@ class GameScene extends Phaser.Scene {
         if (projectile) {
             projectile.setDisplaySize(60, 60);
             this.physics.moveTo(projectile, targetX, targetY, 550);
+            projectile.body.setAllowGravity(false); // Blokada grawitacji dla strzału
         }
     }
 
@@ -258,6 +266,7 @@ class GameScene extends Phaser.Scene {
         if (projectile) {
             projectile.setDisplaySize(60, 60);
             projectile.setVelocityX(directionX * 550);
+            projectile.body.setAllowGravity(false);
         }
     }
 
@@ -282,6 +291,7 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    // ✅ NAPRAWIONO LOGIKĘ TRAFIEŃ: Teraz pocisk niszczy się, a troll traci punkt HP i reaguje na obrażenia
     powerHit(projectile, troll) {
         projectile.destroy();
         
