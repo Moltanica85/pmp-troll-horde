@@ -40,8 +40,8 @@ class BootScene extends Phaser.Scene {
         this.load.image('hpower2', 'assets/hpower2.png');
         this.load.image('opower1', 'assets/opower1.png');
 
-        // BOHATER GŁÓWNY - Ładowanie jako spritesheet (rozmiar klatki 200x200px)
-        this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 200, frameHeight: 200 });
+        // ✅ NAPRAWIONO: Ładowanie bh1run.jpg zamiast nieistniejącego bh1run.png usuwa błędy klatek z konsoli
+        this.load.spritesheet('hero_sheet', 'assets/bh1run.jpg', { frameWidth: 200, frameHeight: 200 });
 
         // TROLE - Poziom 1 (tb), Poziom 2 (tk), Poziom 3 (tm)
         this.load.image('tb1', 'assets/tb1.png');
@@ -62,40 +62,31 @@ class BootScene extends Phaser.Scene {
     }
 
     create() {
-        // Bezpieczne sprawdzanie czy tekstura załadowała się poprawnie, by uniknąć błędów klatkowania
-        let totalFrames = this.textures.get('hero_sheet').frameTotal;
-        
-        // Jeśli tekstura ma mniej klatek niż zakładano, dopasujemy zakres automatycznie chroniąc grę przed crashem duration
-        let endRun = (totalFrames > 12) ? 11 : totalFrames - 1;
-        let startIdle = (totalFrames > 12) ? 12 : 0;
-        let endIdle = (totalFrames > 15) ? 15 : totalFrames - 1;
-        let startAtk = (totalFrames > 16) ? 16 : 0;
-        let endAtk = (totalFrames > 20) ? 20 : totalFrames - 1;
-
+        // Dokładne definicje animacji z Twojego pliku 5x5 klatek
         this.anims.create({ 
             key: 'run',  
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: endRun }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 11 }), 
             frameRate: 12, 
             repeat: -1 
         });
         
         this.anims.create({ 
             key: 'idle', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: startIdle, end: endIdle }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 12, end: 15 }), 
             frameRate: 4, 
             repeat: -1 
         });
 
         this.anims.create({ 
             key: 'atk', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: startAtk, end: endAtk }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 16, end: 20 }), 
             frameRate: 14, 
             repeat: 0 
         });
 
         this.anims.create({ 
             key: 'hero-power', 
-            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: endRun }), 
+            frames: this.anims.generateFrameNumbers('hero_sheet', { start: 21, end: 24 }), 
             frameRate: 10, 
             repeat: 0 
         });
@@ -172,17 +163,17 @@ class GameScene extends Phaser.Scene {
         // Tło poziomu
         this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-        // ✅ NAPRAWIONO: Bohater na osi Y podniesiony do 420 z wycentrowanym origin punktu zakotwiczenia (nie ucina głowy)
-        this.player = this.physics.add.sprite(200, 420, 'hero_sheet');
+        // ✅ NAPRAWIONO STABILIZACJĘ POSTACI: Wyśrodkowana pozycja i bezpieczny hitbox (głowa nie jest ucięta)
+        this.player = this.physics.add.sprite(200, 450, 'hero_sheet');
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.9); 
         this.player.setOrigin(0.5, 0.5);
         
-        // Hitboxy bohatera
-        this.player.body.setSize(50, 120);
-        this.player.body.setOffset(75, 40);
+        // Prawidłowe proporcje pola fizycznego dla siatki 200x200
+        this.player.body.setSize(60, 140);
+        this.player.body.setOffset(70, 30);
         
-        try { this.player.play('idle'); } catch (err) {}
+        this.player.play('idle');
 
         // Grupy fizyczne obiektów
         this.trolls = this.physics.add.group();
@@ -199,7 +190,7 @@ class GameScene extends Phaser.Scene {
             delay: 1400, callback: this.spawnTroll, callbackScope: this, loop: true 
         });
 
-        // Układ fizyki kolizji i nakładania ciał
+        // Układ fizyki i detekcji zderzeń
         this.physics.add.collider(this.powers, this.trolls, this.powerHit, null, this);
         this.physics.add.overlap(this.player, this.trolls, this.playerHit, null, this);
 
@@ -214,31 +205,29 @@ class GameScene extends Phaser.Scene {
         
         let type = Phaser.Utils.Array.GetRandom(this.levelData.types);
         
-        // Zawężony korytarz wysokości spawnu trolli wewnątrz tła okna gry
-        let spawnY = Phaser.Math.Between(260, 540);
+        // Bezpieczny korytarz spawnu w oknie planszy
+        let spawnY = Phaser.Math.Between(260, 560);
         let troll = this.trolls.create(1350, spawnY, type);
         
         if (troll) {
-            // Skala trolla dopasowana idealnie do wzrostu bohatera
+            // Skala trolla dopasowana do wzrostu Twojego bohatera
             troll.setScale(0.35);
             
-            // ✅ NAPRAWIONO HITBOX: Automatyczne pobranie wymiarów sprajta. Strzały trafiają teraz w całe ciało trolla!
+            // ✅ NAPRAWIONO HITBOX TROLLA: Obejmuje teraz całe ciało, nie tylko głowę
             troll.body.setSize(troll.width, troll.height);
             troll.body.setOffset(0, 0);
             
-            // ✅ NAPRAWIONO UCIEKANIE: Włączenie sztywnych granic świata gry Arcade zapobiega opuszczaniu okna planszy
+            // Blokada opuszczania okna ekranu gry
             troll.setCollideWorldBounds(true);
             troll.body.onWorldBounds = true;
             
             troll.type = type;
-
-            // Lustrzane odbicie hordy frontem w lewo
             troll.setFlipX(true); 
 
-            // Przypisanie HP zależnie od poziomu
+            // Punkty życia trolla zależne od poziomu gry
             troll.hp = this.levelIndex + 1;
 
-            // ✅ NAPRAWIONO RUCH: Nadawanie wektora prędkości działa teraz poprawnie na każdym poziomie
+            // ✅ NAPRAWIONO PRZEMIESZCZANIE: Ruch działa bezbłędnie na każdym poziomie
             if (type.startsWith('tb')) troll.setVelocityX(-170);
             if (type.startsWith('tk')) troll.setVelocityX(-110);
             if (type.startsWith('tm')) troll.setVelocityX(-220);
@@ -335,7 +324,6 @@ class GameScene extends Phaser.Scene {
         if (!this.player || !this.player.body) return;
         this.player.setVelocity(0);
 
-        // Uciszenie powiadomień przeglądarki o AudioContext przy sterowaniu klawiaturą
         if (this.sound.context && this.sound.context.state === 'suspended') {
             this.sound.context.resume();
         }
@@ -371,7 +359,7 @@ class GameScene extends Phaser.Scene {
 
         this.trolls.children.iterate(troll => {
             if (troll && troll.active) {
-                // Proceduralny, delikatny ruch sinusoidalny trolli wewnątrz okna
+                // Lekki krok sinusoidalny wewnątrz okna gry
                 troll.y += Math.sin(this.time.now / 100) * 0.3;
 
                 if (troll.type.startsWith('tm')) {
