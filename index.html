@@ -141,7 +141,8 @@ class GameScene extends Phaser.Scene {
 
     this.spawnTimer = this.time.addEvent({ delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true });
 
-    this.physics.add.collider(this.bullets, this.trolls, this.hitTroll, null, this);
+    // ✅ ZMIENIONO: collider na overlap, żeby szybkie pociski nie przelatywały przez hitboxy (brak tunelowania)
+    this.physics.add.overlap(this.bullets, this.trolls, this.hitTroll, null, this);
     this.physics.add.overlap(this.hero, this.trolls, this.playerHit, null, this);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -279,12 +280,12 @@ class GameScene extends Phaser.Scene {
     t.setOrigin(0.5, 1);
     t.setScale(1.2);
 
-    // ✅ ZASTĄPIONO PATCHEM COPILOTA: Pełny, prostokątny hitbox pokrywający całe ciało trolla bez luk i przesunięć
+    // ✅ ZMIENIONO: Pełny, prostokątny hitbox 90x90 z wyzerowanym offsetem na całą sylwetkę PNG
     t.setDisplaySize(90, 90);
     t.setSize(90, 90);
     t.setOffset(0, 0);
 
-    // ✅ ZASTĄPIONO PATCHEM COPILOTA: Precyzyjna segmentacja punktów życia oparta o numer aktywnego poziomu
+    // ✅ ZMIENIONO: Sztywna, bezpieczna segmentacja punktów życia oparta o poziom
     t.hp = (this.currentLevel === 1) ? 1 :
            (this.currentLevel === 2) ? 2 :
            (this.currentLevel === 3) ? 3 : 1;
