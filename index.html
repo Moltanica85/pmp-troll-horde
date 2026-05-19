@@ -141,6 +141,7 @@ class GameScene extends Phaser.Scene {
 
     this.spawnTimer = this.time.addEvent({ delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true });
 
+    // ✅ ZAKOMENTOWANO/USUNIĘTO STARE COLLIDERY - Czysty overlap zapobiega tunelowaniu pocisków
     this.physics.add.overlap(this.bullets, this.trolls, this.hitTroll, null, this);
     this.physics.add.overlap(this.hero, this.trolls, this.playerHit, null, this);
 
@@ -165,7 +166,7 @@ class GameScene extends Phaser.Scene {
 
     if (this.anims.exists('hero-run')) this.hero.play('hero-run');
 
-    // ✅ UKRYTO: debugGraphics zostało wyłączone (alpha zmieniona na false), aby nie rysować ramek wokół sprajtów
+    // ✅ ZAKTUALIZOWANO: Przygotowanie warstwy debugGraphics (domyślnie ukryta)
     this.debugGraphics = this.add.graphics();
     this.debugGraphics.setDepth(1000);
     this.debugGraphics.setVisible(false);
@@ -232,7 +233,6 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // ✅ 1. ZAKTUALIZOWANO: Usunięto czarny kwadracik overlayów. Obiekty są w 100% przezroczyste (alpha=0), zachowując interakcję
   createTouchButtons() {
     const w = this.cameras.main.width, h = this.cameras.main.height;
     const btnSize = Math.round(Math.min(w, h) * 0.12);
@@ -267,7 +267,7 @@ class GameScene extends Phaser.Scene {
     this.spawnTroll(1350, spawnY);
   }
 
-  // ✅ 2. ZAKTUALIZOWANO: Powiększenie trolli o 10% oraz dodanie płynnego efektu "bujania" i "oddychanie" (tween)
+  // ✅ WROŻONO: Zaktualizowana, pewna funkcja spawnTroll z powiększeniem displaySize i updateFromGameObject()
   spawnTroll(x = 1350, y = 560) {
     if (this.trollsSpawned >= this.levelData.horde) return;
     const level = this.currentLevel || 1;
@@ -292,38 +292,39 @@ class GameScene extends Phaser.Scene {
     t.setVisible(true);
     t.setOrigin(0.5, 1);
 
-    // Bazowy rozmiar 90 powiększony o 10% (scaleFactor = 1.10) -> displaySize = 99
+    // BAZOWY rozmiar i powiększenie: dodatkowe +10% (scaleFactor = 1.10)
     const baseSize = 90;
     const scaleFactor = 1.10; 
     const displaySize = Math.round(baseSize * scaleFactor);
-    t.setDisplaySize(displaySize, displaySize);
 
-    // HITBOX idealnie skaluje się i pokrywa powiększoną sylwetkę
+    // Ustaw display i hitbox tak, by idealnie pokrywały cały rzut graficzny trolla
+    t.setDisplaySize(displaySize, displaySize);
     t.setSize(displaySize, displaySize);
     t.setOffset(0, 0);
 
+    // HP zależne od poziomu
+    t.hp = (this.currentLevel === 1) ? 1 :
+           (this.currentLevel === 2) ? 2 :
+           (this.currentLevel === 3) ? 3 : 1;
+
+    // Inicjalizacja fizyki i wymuszenie natychmiastowej aktualizacji rzutu geometrii Arcade
     if (t.body) {
       t.body.setAllowGravity(false);
       t.body.immovable = false;
       t.body.moves = true;
+      t.body.updateFromGameObject();
     }
-
-    t.hp = (this.currentLevel === 1) ? 1 :
-           (this.currentLevel === 2) ? 2 :
-           (this.currentLevel === 3) ? 3 : 1;
 
     const baseSpeed = this.currentLevel === 3 ? -160 : this.currentLevel === 2 ? -140 : -120;
     t.setVelocityX(baseSpeed);
     t.setFlipX(true);
 
-    // Usuwanie starego tweena z puli pamięci, by zapobiec wyciekom pamięci
     if (t._tween) { t._tween.stop(); t._tween = null; }
 
-    // Generowanie płynnego efektu pulsowania skali oraz drobnego ruchu góra-dół osi Y
     t._tween = this.tweens.add({
       targets: t,
       props: [
-        { y: { value: t.y - Phaser.Math.Between(6, 14), duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 } },
+        { y: { value: t.y - Phaser.Math.Between(6, 12), duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 } },
         { scaleX: { value: scaleFactor * 1.03, duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 },
           scaleY: { value: scaleFactor * 0.97, duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 } }
       ],
@@ -331,22 +332,23 @@ class GameScene extends Phaser.Scene {
     });
 
     this.trollsSpawned++;
-    console.log('Spawned', type, 'hp:', t.hp, 'at', x, y);
   }
 
-  // ✅ 3. ZAKTUALIZOWANO: Bezpieczne zatrzymywanie przypisanego tweena trolla przy jego eliminacji
+  // ✅ WROŻONO: Zaktualizowana, bezpieczna funkcja hitTroll rozliczająca obrażenia i gasząca tweens
   hitTroll(bullet, troll) {
+    // Natychmiastowo wyłączamy pocisk z pętli Arcade, by wykluczyć ponowną detekcję w tej samej klatce
     if (bullet && bullet.active) {
       bullet.disableBody(true, true);
     }
 
     if (!troll || !troll.active) return;
+
     troll.hp = (typeof troll.hp === 'number') ? troll.hp - 1 : 0;
     troll.setTint(0xff5555);
     this.time.delayedCall(120, () => { if (troll && troll.active) troll.clearTint(); });
 
     if (troll.hp <= 0) {
-      // Wyłączenie tweena przed zwrotem obiektu do puli
+      // Pewne zatrzymanie bujania i pulsu przed zwrotem do puli obiektów
       if (troll._tween) { troll._tween.stop(); troll._tween = null; }
       
       troll.disableBody(true, true);
@@ -354,12 +356,11 @@ class GameScene extends Phaser.Scene {
       this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
       if (this.trollsLeft <= 0) this.checkVictory();
     } else {
-      const cur = troll.body.velocity.x || -120;
-      troll.setVelocityX(cur * 1.6);
-      this.time.delayedCall(200, () => { if (troll && troll.active && troll.body) troll.setVelocityX(cur); });
+      if (troll.body) troll.setVelocityX((troll.body.velocity.x || -120) * 1.2);
     }
   }
 
+  // ✅ WROŻONO: Zaktualizowana, odporna na tunelowanie metoda budowania pocisków shootAt()
   shootAt(targetX, targetY, power = 1) {
     if (!this.hero || !this.hero.active) return;
 
@@ -386,6 +387,8 @@ class GameScene extends Phaser.Scene {
       bullet.body.checkCollision.down = true;
       bullet.body.checkCollision.left = true;
       bullet.body.checkCollision.right = true;
+      // Wymuszenie rzutu geometrii sprajta pocisku na silnik fizyki Arcade
+      bullet.body.updateFromGameObject();
     }
     bullet.setDepth(10);
 
@@ -495,12 +498,12 @@ class GameScene extends Phaser.Scene {
 
     const levelSpeed = this.currentLevel === 3 ? -160 : this.currentLevel === 2 ? -140 : -120;
 
-    // Rysowanie krawędzi fizycznych (Pozostawiono jako ukryte, by nie zakłócać grafiki)
+    // ✅ Rysowanie nakładki diagnostycznej hitboxów (Włączysz przestawiając setVisible(true) w create)
     this.debugGraphics.clear();
     if (this.debugGraphics.visible) {
-      this.debugGraphics.lineStyle(1, 0x00ff00, 0.8);
+      this.debugGraphics.lineStyle(1, 0x00ff00, 0.9);
       this.trolls.children.iterate(t => { if (t && t.active && t.body) this.debugGraphics.strokeRect(t.body.x, t.body.y, t.body.width, t.body.height); });
-      this.debugGraphics.lineStyle(1, 0xff0000, 0.8);
+      this.debugGraphics.lineStyle(1, 0xff0000, 0.9);
       this.bullets.children.iterate(b => { if (b && b.active && b.body) this.debugGraphics.strokeRect(b.body.x, b.body.y, b.body.width, b.body.height); });
     }
 
