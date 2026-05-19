@@ -141,7 +141,6 @@ class GameScene extends Phaser.Scene {
 
     this.spawnTimer = this.time.addEvent({ delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true });
 
-    // ✅ 1. ZAKTUALIZOWANO: Ustawienie czystego overlap (zarówno dla pocisków, jak i dla bohatera)
     this.physics.add.overlap(this.bullets, this.trolls, this.hitTroll, null, this);
     this.physics.add.overlap(this.hero, this.trolls, this.playerHit, null, this);
 
@@ -166,9 +165,10 @@ class GameScene extends Phaser.Scene {
 
     if (this.anims.exists('hero-run')) this.hero.play('hero-run');
 
-    // ✅ 5. NOWOŚĆ: Dodanie tymczasowej warstwy debugowania hitboxów na ekranie
+    // ✅ UKRYTO: debugGraphics zostało wyłączone (alpha zmieniona na false), aby nie rysować ramek wokół sprajtów
     this.debugGraphics = this.add.graphics();
     this.debugGraphics.setDepth(1000);
+    this.debugGraphics.setVisible(false);
 
     console.log('Hero body exists:', !!(this.hero && this.hero.body));
   }
@@ -232,16 +232,22 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ✅ 1. ZAKTUALIZOWANO: Usunięto czarny kwadracik overlayów. Obiekty są w 100% przezroczyste (alpha=0), zachowując interakcję
   createTouchButtons() {
     const w = this.cameras.main.width, h = this.cameras.main.height;
     const btnSize = Math.round(Math.min(w, h) * 0.12);
 
-    this.leftTouchZone = this.add.rectangle(btnSize/2 + 10, h - btnSize/2 - 10, btnSize, btnSize, 0x000000, 0.12).setScrollFactor(0).setInteractive();
+    this.leftTouchZone = this.add.rectangle(btnSize/2 + 10, h - btnSize/2 - 10, btnSize, btnSize, 0x000000, 0)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true, hitArea: new Phaser.Geom.Rectangle(0,0,btnSize,btnSize), hitAreaCallback: Phaser.Geom.Rectangle.Contains });
+
     this.leftTouchZone.on('pointerdown', (p) => { this._touchMoveActive = true; this._touchTarget = { x: p.worldX, y: p.worldY }; });
     this.leftTouchZone.on('pointerup', () => { this._touchMoveActive = false; this._touchTarget = null; });
     this.leftTouchZone.on('pointermove', (p) => { if (p.isDown) this._touchTarget = { x: p.worldX, y: p.worldY }; });
 
-    this.rightBtn = this.add.circle(w - btnSize/2 - 10, h - btnSize/2 - 10, btnSize/2, 0xffffff, 0.18).setScrollFactor(0).setInteractive();
+    this.rightBtn = this.add.circle(w - btnSize/2 - 10, h - btnSize/2 - 10, btnSize/2, 0xffffff, 0)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true });
     
     this.rightBtn.on('pointerdown', (p) => { 
       this.aimCharging = true;
@@ -261,9 +267,10 @@ class GameScene extends Phaser.Scene {
     this.spawnTroll(1350, spawnY);
   }
 
-  // ✅ 3. ZAKTUALIZOWANO: Ścisłe i bezpieczne definiowanie hitboxów oraz HP w spawnTroll
+  // ✅ 2. ZAKTUALIZOWANO: Powiększenie trolli o 10% oraz dodanie płynnego efektu "bujania" i "oddychanie" (tween)
   spawnTroll(x = 1350, y = 560) {
     if (this.trollsSpawned >= this.levelData.horde) return;
+    const level = this.currentLevel || 1;
 
     this.trolls.children.iterate(troll => {
       if (troll && troll.active && Math.abs(troll.x - x) < 80) x += Phaser.Math.Between(70, 130);
@@ -284,21 +291,23 @@ class GameScene extends Phaser.Scene {
     t.setActive(true);
     t.setVisible(true);
     t.setOrigin(0.5, 1);
-    t.setScale(1.2);
 
-    // Pełny sprite PNG 90x90 z zerowym offsetem na całą sylwetkę
-    t.setDisplaySize(90, 90);
-    t.setSize(90, 90);
+    // Bazowy rozmiar 90 powiększony o 10% (scaleFactor = 1.10) -> displaySize = 99
+    const baseSize = 90;
+    const scaleFactor = 1.10; 
+    const displaySize = Math.round(baseSize * scaleFactor);
+    t.setDisplaySize(displaySize, displaySize);
+
+    // HITBOX idealnie skaluje się i pokrywa powiększoną sylwetkę
+    t.setSize(displaySize, displaySize);
     t.setOffset(0, 0);
 
-    // Bezpieczne wymuszenie flag silnika Arcade Physics
     if (t.body) {
       t.body.setAllowGravity(false);
       t.body.immovable = false;
       t.body.moves = true;
     }
 
-    // Wyliczanie HP trolli na podstawie aktualnego poziomu trudności
     t.hp = (this.currentLevel === 1) ? 1 :
            (this.currentLevel === 2) ? 2 :
            (this.currentLevel === 3) ? 3 : 1;
@@ -307,46 +316,56 @@ class GameScene extends Phaser.Scene {
     t.setVelocityX(baseSpeed);
     t.setFlipX(true);
 
+    // Usuwanie starego tweena z puli pamięci, by zapobiec wyciekom pamięci
+    if (t._tween) { t._tween.stop(); t._tween = null; }
+
+    // Generowanie płynnego efektu pulsowania skali oraz drobnego ruchu góra-dół osi Y
+    t._tween = this.tweens.add({
+      targets: t,
+      props: [
+        { y: { value: t.y - Phaser.Math.Between(6, 14), duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 } },
+        { scaleX: { value: scaleFactor * 1.03, duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 },
+          scaleY: { value: scaleFactor * 0.97, duration: 900, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 } }
+      ],
+      loop: -1
+    });
+
     this.trollsSpawned++;
     console.log('Spawned', type, 'hp:', t.hp, 'at', x, y);
   }
 
-  // ✅ 4. ZAKTUALIZOWANO: Poprawne, odporne na podwójne zliczanie rozliczanie kolizji w hitTroll
+  // ✅ 3. ZAKTUALIZOWANO: Bezpieczne zatrzymywanie przypisanego tweena trolla przy jego eliminacji
   hitTroll(bullet, troll) {
-    // Natychmiastowo wyłączamy pocisk z pętli fizycznej, aby zapobiec tunelowaniu i wielokrotnym trafieniom
     if (bullet && bullet.active) {
       bullet.disableBody(true, true);
     }
 
     if (!troll || !troll.active) return;
-
-    // Bezpieczna dekrementacja punktów HP trolla
     troll.hp = (typeof troll.hp === 'number') ? troll.hp - 1 : 0;
     troll.setTint(0xff5555);
     this.time.delayedCall(120, () => { if (troll && troll.active) troll.clearTint(); });
 
-    // Wyłączenie ciała trolla przy spadku HP do zera
     if (troll.hp <= 0) {
+      // Wyłączenie tweena przed zwrotem obiektu do puli
+      if (troll._tween) { troll._tween.stop(); troll._tween = null; }
+      
       troll.disableBody(true, true);
       this.trollsLeft = Math.max(0, this.trollsLeft - 1);
       this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
       if (this.trollsLeft <= 0) this.checkVictory();
     } else {
-      // Efekt odrzutu (knockback) działający poprawnie w osi X
       const cur = troll.body.velocity.x || -120;
       troll.setVelocityX(cur * 1.6);
       this.time.delayedCall(200, () => { if (troll && troll.active && troll.body) troll.setVelocityX(cur); });
     }
   }
 
-  // ✅ 2. ZAKTUALIZOWANO: Bezpieczny wzorzec shootAt() wykorzystujący getFirstDead i uniemożliwiający tunelowanie
   shootAt(targetX, targetY, power = 1) {
     if (!this.hero || !this.hero.active) return;
 
     const startX = this.hero.x + (this.hero.flipX ? -30 : 30);
     const startY = this.hero.y - 40;
 
-    // Pobranie martwego pocisku w celu redukcji śmieci w pamięci (Garbage Collector)
     let bullet = this.bullets.getFirstDead();
     if (!bullet) {
       bullet = this.physics.add.image(startX, startY, 'hpower2');
@@ -356,7 +375,6 @@ class GameScene extends Phaser.Scene {
       bullet.setTexture('hpower2');
     }
 
-    // Konfiguracja fizyczna pocisku Arcade Physics
     bullet.setActive(true);
     bullet.setVisible(true);
     bullet.setDisplaySize(40, 40);
@@ -477,29 +495,22 @@ class GameScene extends Phaser.Scene {
 
     const levelSpeed = this.currentLevel === 3 ? -160 : this.currentLevel === 2 ? -140 : -120;
 
-    // ✅ 5. NOWOŚĆ: Dynamiczne rysowanie hitboxów w pętli update dla celów diagnostycznych
+    // Rysowanie krawędzi fizycznych (Pozostawiono jako ukryte, by nie zakłócać grafiki)
     this.debugGraphics.clear();
-    
-    // Trolle: Zielone krawędzie hitboxów
-    this.debugGraphics.lineStyle(1, 0x00ff00, 0.8);
-    this.trolls.children.iterate(t => {
-      if (t && t.active && t.body) {
-        this.debugGraphics.strokeRect(t.body.x, t.body.y, t.body.width, t.body.height);
-      }
-    });
-
-    // Pociski: Czerwone krawędzie hitboxów
-    this.debugGraphics.lineStyle(1, 0xff0000, 0.8);
-    this.bullets.children.iterate(b => {
-      if (b && b.active && b.body) {
-        this.debugGraphics.strokeRect(b.body.x, b.body.y, b.body.width, b.body.height);
-      }
-    });
+    if (this.debugGraphics.visible) {
+      this.debugGraphics.lineStyle(1, 0x00ff00, 0.8);
+      this.trolls.children.iterate(t => { if (t && t.active && t.body) this.debugGraphics.strokeRect(t.body.x, t.body.y, t.body.width, t.body.height); });
+      this.debugGraphics.lineStyle(1, 0xff0000, 0.8);
+      this.bullets.children.iterate(b => { if (b && b.active && b.body) this.debugGraphics.strokeRect(b.body.x, b.body.y, b.body.width, b.body.height); });
+    }
 
     this.trolls.children.iterate(t => {
       if (!t || !t.active || !t.body) return;
       if (Math.abs(t.body.velocity.x) < 1) t.setVelocityX(levelSpeed);
-      if (t.x < -100) t.disableBody(true, true);
+      if (t.x < -100) {
+        if (t._tween) { t._tween.stop(); t._tween = null; }
+        t.disableBody(true, true);
+      }
     });
   }
 }
