@@ -106,7 +106,7 @@ class GameScene extends Phaser.Scene {
     this._touchTarget = null;
     this._pointerDownTime = 0;
 
-    // Celowanie i ładowanie pocisków
+    // Celowanie i parametry pocisków
     this.aimTarget = null;        
     this.aimPower = 1;           
     this.aimCharging = false;
@@ -257,7 +257,6 @@ class GameScene extends Phaser.Scene {
 
   spawnTroll(x = 1350, y = 560) {
     if (this.trollsSpawned >= this.levelData.horde) return;
-    const level = this.currentLevel || 1;
 
     this.trolls.children.iterate(troll => {
       if (troll && troll.active && Math.abs(troll.x - x) < 80) x += Phaser.Math.Between(70, 130);
@@ -279,17 +278,21 @@ class GameScene extends Phaser.Scene {
     t.setVisible(true);
     t.setOrigin(0.5, 1);
     t.setScale(1.2);
-    t.setDisplaySize(90, 90);
 
-    // ✅ NAPRAWIONO HITBOXY: Zmieniono setCircle na pełny prostokąt pokrywający całą sylwetkę trolla (90x90)
+    // ✅ ZASTĄPIONO PATCHEM COPILOTA: Pełny, prostokątny hitbox pokrywający całe ciało trolla bez luk i przesunięć
+    t.setDisplaySize(90, 90);
     t.setSize(90, 90);
     t.setOffset(0, 0);
 
-    t.hp = level === 2 ? 2 : level === 3 ? 3 : 1;
+    // ✅ ZASTĄPIONO PATCHEM COPILOTA: Precyzyjna segmentacja punktów życia oparta o numer aktywnego poziomu
+    t.hp = (this.currentLevel === 1) ? 1 :
+           (this.currentLevel === 2) ? 2 :
+           (this.currentLevel === 3) ? 3 : 1;
+
     t.body.immovable = false;
     t.body.moves = true;
 
-    const baseSpeed = level === 3 ? -160 : level === 2 ? -140 : -120;
+    const baseSpeed = this.currentLevel === 3 ? -160 : this.currentLevel === 2 ? -140 : -120;
     t.setVelocityX(baseSpeed);
     t.setFlipX(true);
 
@@ -443,8 +446,7 @@ class GameScene extends Phaser.Scene {
       this.hero.setFrame(0);
     }
 
-    const level = this.currentLevel || 1;
-    const levelSpeed = level === 3 ? -160 : level === 2 ? -140 : -120;
+    const levelSpeed = this.currentLevel === 3 ? -160 : this.currentLevel === 2 ? -140 : -120;
 
     this.trolls.children.iterate(t => {
       if (!t || !t.active || !t.body) return;
