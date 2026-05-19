@@ -8,7 +8,6 @@
 <style>
   body { margin: 0; background: #000; overflow: hidden; padding: 0; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   canvas { display: block; margin: 0 auto; }
-  /* proste style dla przycisków dotykowych (nie przeszkadzają na desktop) */
   .hidden { display:none; }
 </style>
 </head>
@@ -30,7 +29,6 @@ class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
 
   preload() {
-    // tła i ikony
     this.load.image('oknoglowne', 'assets/oknoglowne.png');
     this.load.image('tlolv1', 'assets/tlolv1.jpeg');
     this.load.image('tlolv2', 'assets/tlolv2.jpeg');
@@ -38,38 +36,27 @@ class BootScene extends Phaser.Scene {
     this.load.image('hpower2', 'assets/hpower2.png');
     this.load.image('opower1', 'assets/opower1.png');
 
-    // usuń stare tekstury jeśli istnieją (bezpiecznie)
     if (this.textures.exists('hero_sheet')) this.textures.remove('hero_sheet');
 
-    // BOHATER - spritesheet (dostosuj frameWidth/frameHeight jeśli Twój arkusz ma inne wymiary)
-    // Zakładamy, że bh1run.png ma klatki 120x120 (np. 600x120 lub 120x600 w zależności ułożenia)
     this.load.spritesheet('hero_sheet', 'assets/bh1run.png', { frameWidth: 120, frameHeight: 120, margin: 0, spacing: 0 });
 
-    // 9 typów trolli jako pojedyncze obrazy (masz je w repo)
     const trollFiles = ['tb1','tb2','tb3','tk1','tk2','tk3','tm1','tm2','tm3'];
     trollFiles.forEach(name => this.load.image(name, `assets/${name}.png`));
 
-    // audio
     this.load.audio('track1', 'assets/muzyka1.mp3');
     this.load.audio('track2', 'assets/muzyka2.mp3');
 
-    // debug ładowania
     this.load.on('filecomplete', (key) => console.log('Załadowany:', key));
     this.load.on('loaderror', (file) => console.error('Błąd ładowania:', file.key));
   }
 
   create() {
-    // Tworzymy animację bohatera — bezpieczny zakres 0..7 (jeśli masz inną liczbę klatek, zmień end)
-    // Jeśli Twój spritesheet ma 25 klatek, zmień end: 24
     this.anims.create({
       key: 'hero-run',
-      frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 7 }),
-      frameRate: 12,
+      frames: this.anims.generateFrameNumbers('hero_sheet', { start: 0, end: 24 }),
+      frameRate: 14,
       repeat: -1
     });
-
-    // Nie tworzymy jednej wspólnej animacji 'troll-run' z nieistniejącego spritesheetu.
-    // Trolle są pojedynczymi obrazami — animacja to opcjonalny efekt skalowania/oscylacji w update().
 
     this.scene.start('StartScene');
   }
@@ -92,7 +79,6 @@ class StartScene extends Phaser.Scene {
       this.scene.start('GameScene', { levelIndex: 0 });
     });
 
-    // Suwak głośności (prosty)
     this.add.text(640, 540, "GŁOŚNOŚĆ", { fontSize: '20px', fill: '#fff', fontStyle: 'bold', fontFamily: 'Arial' }).setOrigin(0.5);
     this.add.rectangle(640, 580, 200, 10, 0x333333);
     let handle = this.add.circle(540 + (globalVolume * 200), 580, 15, 0xffffff).setInteractive({ useHandCursor: true });
@@ -116,32 +102,35 @@ class GameScene extends Phaser.Scene {
     this.currentLevel = this.levelData.index;
     this.powerCooldown = false;
     this.shootCooldown = false;
-    // touch helpers
     this._touchMoveActive = false;
     this._touchTarget = null;
     this._pointerDownTime = 0;
+
+    // ✅ OTRZYMANE ZMIANY: Nowe pola klasy dla obsługi celowania ręcznego i ładowania mocy
+    this.aimTarget = null;        
+    this.aimPower = 1;           
+    this.aimCharging = false;
+    this.aimChargeStart = 0;
+    this.aimMaxPower = 2.5;      
+    this.aimMinPower = 0.8;      
   }
 
   create() {
-    // muzyka
     if (music1 && music1.isPlaying) music1.stop();
     if (!music2) music2 = this.sound.add('track2', { loop: true, volume: globalVolume });
     try { if (!music2.isPlaying) music2.play(); } catch(e) {}
 
-    // tło
     this.add.image(640, 360, this.levelData.bg).setDisplaySize(1280, 720);
 
-    // bohater
     this.hero = this.physics.add.sprite(100, 450, 'hero_sheet', 0);
     this.hero.setOrigin(0.5, 1);
     this.hero.setScale(1);
     this.hero.setCollideWorldBounds(true);
     this.hero.setSize(40, 90);
     this.hero.setOffset(40, 26);
-    // upewnij się, że body jest aktywne
+    
     if (this.hero.body) { this.hero.body.immovable = false; this.hero.body.moves = true; this.hero.body.enable = true; }
 
-    // grupy
     this.trolls = this.physics.add.group({ classType: Phaser.Physics.Arcade.Sprite, runChildUpdate: true, maxSize: 100 });
     this.bullets = this.physics.add.group();
 
@@ -150,14 +139,11 @@ class GameScene extends Phaser.Scene {
 
     this.uiText = this.add.text(30, 30, `${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`, { fontSize: '26px', fill: '#fff', stroke: '#000', strokeThickness: 5 });
 
-    // spawner
     this.spawnTimer = this.time.addEvent({ delay: 2000, callback: this.spawnTrollCall, callbackScope: this, loop: true });
 
-    // kolizje
     this.physics.add.collider(this.bullets, this.trolls, this.hitTroll, null, this);
     this.physics.add.overlap(this.hero, this.trolls, this.playerHit, null, this);
 
-    // input: klawiatura (WASD + strzałki) i akcje
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -172,30 +158,32 @@ class GameScene extends Phaser.Scene {
       arrowRight: Phaser.Input.Keyboard.KeyCodes.RIGHT
     });
 
-    // pointer / touch handlers
-    this.setupPointerControls();
-
-    // przyciski ekranowe (mobilne)
     this.createTouchButtons();
 
-    // uruchom animację bohatera (jeśli istnieje)
-    if (this.anims.exists('hero-run')) this.hero.play('hero-run');
+    // ✅ OTRZYMANE ZMIANY: Nowy, scalony system pointer Controls z obsługą Reticle i ładowaniem
+    this.reticle = this.add.circle(0, 0, 10, 0xffcc00, 0.6).setScrollFactor(0).setVisible(false).setDepth(20);
+    this.setupPointerControls();
 
-    // debug: sprawdź czy hero.body istnieje
+    if (this.anims.exists('hero-run')) this.hero.play('hero-run');
     console.log('Hero body exists:', !!(this.hero && this.hero.body));
   }
 
   setupPointerControls() {
-    // pointerdown: lewa połowa = ruch, prawa połowa = shoot/power
     this.input.on('pointerdown', (pointer) => {
       const w = this.cameras.main.width;
       if (pointer.x > w * 0.5) {
-        // prawa połowa: zapamiętaj czas przytrzymania
+        // ✅ PRAWA POŁOWA: Aktywacja ładowania kierunkowego pocisku i ustawienie celownika
+        this.aimCharging = true;
+        this.aimChargeStart = this.time.now;
+        this.aimTarget = { x: pointer.worldX, y: pointer.worldY };
+        
+        this.reticle.setVisible(true);
+        this.reticle.x = pointer.x;
+        this.reticle.y = pointer.y;
+
         this._pointerDownTime = this.time.now;
-        // natychmiast shoot przy kliknięciu myszy
-        if (pointer.pointerType === 'mouse') { if (this.shoot) this.shoot(); }
       } else {
-        // lewa połowa: rozpocznij ruch do punktu
+        // LEWA POŁOWA: Tradycyjny ruch mobilny
         this._touchMoveActive = true;
         this._touchTarget = { x: pointer.worldX, y: pointer.worldY };
       }
@@ -204,19 +192,44 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer) => {
       const w = this.cameras.main.width;
       if (pointer.x > w * 0.5) {
-        const dt = this.time.now - (this._pointerDownTime || 0);
-        if (dt > 400) { if (this.usePower) this.usePower(); }
-        else { if (this.shoot) this.shoot(); }
+        // ✅ PRAWA POŁOWA: Zakończenie ładowania i kalkulacja uzyskanej energii strzału
+        const dt = Math.max(0, this.time.now - (this.aimChargeStart || 0));
+        const chargeRatio = Math.min(1, dt / 800); 
+        const power = this.aimMinPower + (this.aimMaxPower - this.aimMinPower) * chargeRatio;
+        
+        this.aimCharging = false;
+        this.aimChargeStart = 0;
+
+        const tx = pointer.worldX || (this.aimTarget && this.aimTarget.x);
+        const ty = pointer.worldY || (this.aimTarget && this.aimTarget.y);
+        
+        // Wywołanie specjalnej funkcji strzału kierunkowego
+        if (tx && ty) this.shootAt(tx, ty, power);
+
+        // Wyczyszczenie i schowanie wskaźników celowania
+        this.aimTarget = null;
+        this.reticle.setVisible(false);
         this._pointerDownTime = 0;
       } else {
+        // LEWA POŁOWA: Zatrzymanie ruchu mobilnego
         this._touchMoveActive = false;
         this._touchTarget = null;
       }
     });
 
     this.input.on('pointermove', (pointer) => {
-      if (this._touchMoveActive && pointer.isDown) {
-        this._touchTarget = { x: pointer.worldX, y: pointer.worldY };
+      // Śledzenie ruchu palca/myszy na żywo dla celownika
+      if (pointer.isDown) {
+        if (pointer.x > this.cameras.main.width * 0.5) {
+          if (this.aimCharging) {
+            this.reticle.setVisible(true);
+            this.reticle.x = pointer.x;
+            this.reticle.y = pointer.y;
+            this.aimTarget = { x: pointer.worldX, y: pointer.worldY };
+          }
+        } else {
+          this._touchTarget = { x: pointer.worldX, y: pointer.worldY };
+        }
       }
     });
   }
@@ -225,16 +238,25 @@ class GameScene extends Phaser.Scene {
     const w = this.cameras.main.width, h = this.cameras.main.height;
     const btnSize = Math.round(Math.min(w, h) * 0.12);
 
-    // lewy obszar ruchu (przezroczysty)
     this.leftTouchZone = this.add.rectangle(btnSize/2 + 10, h - btnSize/2 - 10, btnSize, btnSize, 0x000000, 0.12).setScrollFactor(0).setInteractive();
     this.leftTouchZone.on('pointerdown', (p) => { this._touchMoveActive = true; this._touchTarget = { x: p.worldX, y: p.worldY }; });
     this.leftTouchZone.on('pointerup', () => { this._touchMoveActive = false; this._touchTarget = null; });
     this.leftTouchZone.on('pointermove', (p) => { if (p.isDown) this._touchTarget = { x: p.worldX, y: p.worldY }; });
 
-    // prawy przycisk: shoot / power
     this.rightBtn = this.add.circle(w - btnSize/2 - 10, h - btnSize/2 - 10, btnSize/2, 0xffffff, 0.18).setScrollFactor(0).setInteractive();
-    this.rightBtn.on('pointerdown', (p) => { this._pointerDownTime = this.time.now; if (this.shoot) this.shoot(); });
-    this.rightBtn.on('pointerup', (p) => { const dt = this.time.now - (this._pointerDownTime || 0); if (dt > 400) { if (this.usePower) this.usePower(); } this._pointerDownTime = 0; });
+    
+    // Zintegrowanie fizycznego przycisku ekranowego z systemem Copilota
+    this.rightBtn.on('pointerdown', (p) => { 
+      this.aimCharging = true;
+      this.aimChargeStart = this.time.now;
+      this.shoot(); 
+    });
+    this.rightBtn.on('pointerup', (p) => { 
+      const dt = this.time.now - (this.aimChargeStart || 0); 
+      if (dt > 400 && !this.powerCooldown) { this.usePower(); } 
+      this.aimCharging = false;
+      this.aimChargeStart = 0;
+    });
   }
 
   spawnTrollCall() {
@@ -246,12 +268,10 @@ class GameScene extends Phaser.Scene {
     if (this.trollsSpawned >= this.levelData.horde) return;
     const level = this.currentLevel || 1;
 
-    // unikaj nakładania się spawnów
     this.trolls.children.iterate(troll => {
       if (troll && troll.active && Math.abs(troll.x - x) < 80) x += Phaser.Math.Between(70, 130);
     });
 
-    // wybierz losowy typ z aktualnego poziomu
     const types = (this.levelData.types || []).filter(t => this.textures.exists(t));
     if (types.length === 0) {
       console.warn('Brak załadowanych tekstur dla tego poziomu:', this.levelData.types);
@@ -297,22 +317,65 @@ class GameScene extends Phaser.Scene {
       this.uiText.setText(`${this.levelData.name}\nPozostałe trole: ${this.trollsLeft}`);
       if (this.trollsLeft <= 0) this.checkVictory();
     } else {
-      // krótki odrzut
       const cur = troll.body.velocity.x || -120;
       troll.setVelocityX(cur * 1.6);
       this.time.delayedCall(200, () => { if (troll && troll.active && troll.body) troll.setVelocityX(cur); });
     }
   }
 
+  // ✅ OTRZYMANE ZMIANY: Nowa, zaawansowana funkcja kierunkowego wystrzału pocisku ze zmienną prędkością
+  shootAt(targetX, targetY, power = 1) {
+    if (!this.hero || !this.hero.active) return;
+    if (!this.bullets) this.bullets = this.physics.add.group();
+
+    const startX = this.hero.x + (this.hero.flipX ? -30 : 30);
+    const startY = this.hero.y - 40;
+
+    let bullet = this.bullets.get(startX, startY, 'hpower2');
+    if (!bullet) {
+      bullet = this.physics.add.image(startX, startY, 'hpower2');
+      this.bullets.add(bullet);
+    } else {
+      bullet.enableBody(true, startX, startY, true, true);
+      bullet.setActive(true);
+      bullet.setVisible(true);
+    }
+
+    bullet.setDisplaySize(40, 40);
+    if (bullet.body) bullet.body.setSize(30, 30);
+    bullet.setDepth(10);
+
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const angle = Math.atan2(dy, dx);
+    const baseSpeed = 600; 
+    const speed = baseSpeed * power; 
+
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
+    bullet.body.velocity.x = vx;
+    bullet.body.velocity.y = vy;
+
+    if (bullet.setRotation) bullet.setRotation(angle);
+
+    this.time.delayedCall(3000, () => {
+      if (bullet && bullet.active) bullet.disableBody(true, true);
+    });
+  }
+
+  // ✅ OTRZYMANE ZMIANY: Zaktualizowana funkcja shoot() współpracująca ze wskaźnikiem celownika
   shoot() {
     if (this.shootCooldown || !this.hero || !this.hero.active) return;
     this.shootCooldown = true;
-    let bullet = this.bullets.create(this.hero.x + 30, this.hero.y - 50, 'hpower2');
-    if (bullet) {
-      bullet.setDisplaySize(40, 40);
-      bullet.body.setSize(30, 30);
-      bullet.setVelocityX(600);
+
+    if (this.aimTarget) {
+      this.shootAt(this.aimTarget.x, this.aimTarget.y, 1);
+    } else {
+      const forwardX = this.hero.x + (this.hero.flipX ? -400 : 400);
+      const forwardY = this.hero.y - 40;
+      this.shootAt(forwardX, forwardY, 1);
     }
+
     this.time.delayedCall(350, () => this.shootCooldown = false);
   }
 
@@ -338,16 +401,13 @@ class GameScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.hero || !this.hero.body) return;
 
-    // jeśli body wyłączone — włącz
     if (this.hero.body && !this.hero.body.enable) {
       console.warn('Hero body disabled — enabling.');
       this.hero.body.enable = true;
     }
 
-    // reset prędkości
     this.hero.setVelocity(0);
 
-    // keyboard movement (WASD + arrows)
     let moving = false;
     const k = this.keys;
     if ((k.left && k.left.isDown) || (k.arrowLeft && k.arrowLeft.isDown)) { this.hero.setVelocityX(-280); moving = true; this.hero.setFlipX(true); }
@@ -355,7 +415,9 @@ class GameScene extends Phaser.Scene {
     if ((k.up && k.up.isDown) || (k.arrowUp && k.arrowUp.isDown)) { this.hero.setVelocityY(-280); moving = true; }
     else if ((k.down && k.down.isDown) || (k.arrowDown && k.arrowDown.isDown)) { this.hero.setVelocityY(280); moving = true; }
 
-    // touch/pointer movement (lewa połowa)
+    if (Phaser.Input.Keyboard.JustDown(k.shoot)) { this.shoot(); }
+    if (k.power && k.power.isDown && !this.powerCooldown) { this.usePower(); }
+
     if (this._touchMoveActive && this._touchTarget) {
       const speed = 260;
       const dx = this._touchTarget.x - this.hero.x;
@@ -371,19 +433,32 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // animacja bohatera
+    // ✅ OTRZYMANE ZMIANY: Płynna interpolacja kolorów reticle (żółty -> czerwony) przy przytrzymaniu strzału
+    if (this.aimCharging) {
+      const dt = Math.min(800, this.time.now - (this.aimChargeStart || 0));
+      const ratio = dt / 800;
+      const color = Phaser.Display.Color.Interpolate.ColorWithColor(
+        new Phaser.Display.Color(255, 204, 0),
+        new Phaser.Display.Color(255, 60, 60),
+        100, Math.floor(ratio * 100)
+      );
+      this.reticle.fillColor = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
+      this.reticle.setScale(1 + ratio * 0.6);
+    }
+
     if (moving) {
       this.hero.play('hero-run', true);
     } else {
-      // ustaw stabilną klatkę spoczynkową
       this.hero.anims.stop();
       this.hero.setFrame(0);
     }
 
-    // stabilizacja trolli
+    const level = this.currentLevel || 1;
+    const levelSpeed = level === 3 ? -160 : level === 2 ? -140 : -120;
+
     this.trolls.children.iterate(t => {
       if (!t || !t.active || !t.body) return;
-      if (Math.abs(t.body.velocity.x) < 1) t.setVelocityX(-120);
+      if (Math.abs(t.body.velocity.x) < 1) t.setVelocityX(levelSpeed);
       if (t.x < -100) t.disableBody(true, true);
     });
   }
