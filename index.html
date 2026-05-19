@@ -106,7 +106,7 @@ class GameScene extends Phaser.Scene {
     this._touchTarget = null;
     this._pointerDownTime = 0;
 
-    // ✅ OTRZYMANE ZMIANY: Nowe pola klasy dla obsługi celowania ręcznego i ładowania mocy
+    // Celowanie i ładowanie pocisków
     this.aimTarget = null;        
     this.aimPower = 1;           
     this.aimCharging = false;
@@ -160,7 +160,6 @@ class GameScene extends Phaser.Scene {
 
     this.createTouchButtons();
 
-    // ✅ OTRZYMANE ZMIANY: Nowy, scalony system pointer Controls z obsługą Reticle i ładowaniem
     this.reticle = this.add.circle(0, 0, 10, 0xffcc00, 0.6).setScrollFactor(0).setVisible(false).setDepth(20);
     this.setupPointerControls();
 
@@ -172,7 +171,6 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer) => {
       const w = this.cameras.main.width;
       if (pointer.x > w * 0.5) {
-        // ✅ PRAWA POŁOWA: Aktywacja ładowania kierunkowego pocisku i ustawienie celownika
         this.aimCharging = true;
         this.aimChargeStart = this.time.now;
         this.aimTarget = { x: pointer.worldX, y: pointer.worldY };
@@ -183,7 +181,6 @@ class GameScene extends Phaser.Scene {
 
         this._pointerDownTime = this.time.now;
       } else {
-        // LEWA POŁOWA: Tradycyjny ruch mobilny
         this._touchMoveActive = true;
         this._touchTarget = { x: pointer.worldX, y: pointer.worldY };
       }
@@ -192,7 +189,6 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer) => {
       const w = this.cameras.main.width;
       if (pointer.x > w * 0.5) {
-        // ✅ PRAWA POŁOWA: Zakończenie ładowania i kalkulacja uzyskanej energii strzału
         const dt = Math.max(0, this.time.now - (this.aimChargeStart || 0));
         const chargeRatio = Math.min(1, dt / 800); 
         const power = this.aimMinPower + (this.aimMaxPower - this.aimMinPower) * chargeRatio;
@@ -203,22 +199,18 @@ class GameScene extends Phaser.Scene {
         const tx = pointer.worldX || (this.aimTarget && this.aimTarget.x);
         const ty = pointer.worldY || (this.aimTarget && this.aimTarget.y);
         
-        // Wywołanie specjalnej funkcji strzału kierunkowego
         if (tx && ty) this.shootAt(tx, ty, power);
 
-        // Wyczyszczenie i schowanie wskaźników celowania
         this.aimTarget = null;
         this.reticle.setVisible(false);
         this._pointerDownTime = 0;
       } else {
-        // LEWA POŁOWA: Zatrzymanie ruchu mobilnego
         this._touchMoveActive = false;
         this._touchTarget = null;
       }
     });
 
     this.input.on('pointermove', (pointer) => {
-      // Śledzenie ruchu palca/myszy na żywo dla celownika
       if (pointer.isDown) {
         if (pointer.x > this.cameras.main.width * 0.5) {
           if (this.aimCharging) {
@@ -245,7 +237,6 @@ class GameScene extends Phaser.Scene {
 
     this.rightBtn = this.add.circle(w - btnSize/2 - 10, h - btnSize/2 - 10, btnSize/2, 0xffffff, 0.18).setScrollFactor(0).setInteractive();
     
-    // Zintegrowanie fizycznego przycisku ekranowego z systemem Copilota
     this.rightBtn.on('pointerdown', (p) => { 
       this.aimCharging = true;
       this.aimChargeStart = this.time.now;
@@ -289,8 +280,10 @@ class GameScene extends Phaser.Scene {
     t.setOrigin(0.5, 1);
     t.setScale(1.2);
     t.setDisplaySize(90, 90);
-    t.setSize(40, 80);
-    t.setOffset(12, 8);
+
+    // ✅ NAPRAWIONO HITBOXY: Zmieniono setCircle na pełny prostokąt pokrywający całą sylwetkę trolla (90x90)
+    t.setSize(90, 90);
+    t.setOffset(0, 0);
 
     t.hp = level === 2 ? 2 : level === 3 ? 3 : 1;
     t.body.immovable = false;
@@ -323,7 +316,6 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  // ✅ OTRZYMANE ZMIANY: Nowa, zaawansowana funkcja kierunkowego wystrzału pocisku ze zmienną prędkością
   shootAt(targetX, targetY, power = 1) {
     if (!this.hero || !this.hero.active) return;
     if (!this.bullets) this.bullets = this.physics.add.group();
@@ -363,7 +355,6 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // ✅ OTRZYMANE ZMIANY: Zaktualizowana funkcja shoot() współpracująca ze wskaźnikiem celownika
   shoot() {
     if (this.shootCooldown || !this.hero || !this.hero.active) return;
     this.shootCooldown = true;
@@ -433,7 +424,6 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // ✅ OTRZYMANE ZMIANY: Płynna interpolacja kolorów reticle (żółty -> czerwony) przy przytrzymaniu strzału
     if (this.aimCharging) {
       const dt = Math.min(800, this.time.now - (this.aimChargeStart || 0));
       const ratio = dt / 800;
